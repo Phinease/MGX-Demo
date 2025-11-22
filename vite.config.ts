@@ -17,6 +17,20 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Polyfill Node.js modules for browser
+      'node:async_hooks': path.resolve(__dirname, './src/lib/polyfills/async_hooks.ts'),
     },
+  },
+  optimizeDeps: {
+    include: ['langchain', '@langchain/core', '@langchain/openai'],
+    esbuildOptions: {
+      define: {
+        global: 'globalThis',
+      },
+    },
+  },
+  define: {
+    'process.env': {},
+    global: 'globalThis',
   },
 }));

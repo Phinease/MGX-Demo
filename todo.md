@@ -26,3 +26,5 @@ Building an intelligent agent frontend coding platform with chat interface, code
 - @supabase/supabase-js (for authentication)
 - react-syntax-highlighter (for code highlighting)
 - lucide-react (icons, likely already in template)
+
+Test

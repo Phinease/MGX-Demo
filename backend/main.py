@@ -7,10 +7,14 @@ from pydantic import BaseModel
 
 app = FastAPI(title="File System API")
 
-# 配置 CORS
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite 默认端口
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -26,7 +30,7 @@ class FileNode(BaseModel):
     children: Optional[List['FileNode']] = None
 
 
-# 根据文件扩展名推断语言
+# Infer language from file extension
 def get_language(file_path: str) -> str:
     ext_map = {
         '.py': 'python',
@@ -56,7 +60,7 @@ def get_language(file_path: str) -> str:
     return ext_map.get(ext, 'text')
 
 
-# 忽略的文件和文件夹
+# Ignore patterns for files and folders
 IGNORE_PATTERNS = {
     'node_modules', '.git', '.vscode', '__pycache__', '.pytest_cache',
     'dist', 'build', '.next', '.nuxt', 'venv', '.venv', 'env',
@@ -65,19 +69,19 @@ IGNORE_PATTERNS = {
 
 
 def should_ignore(path: Path) -> bool:
-    """检查是否应该忽略该路径"""
+    """Check if the path should be ignored"""
     return path.name in IGNORE_PATTERNS or path.name.startswith('.')
 
 
 def read_directory_tree(directory_path: str, include_content: bool = False, max_depth: int = 5, current_depth: int = 0) -> List[FileNode]:
     """
-    递归读取目录结构
+    Recursively read directory structure
     
     Args:
-        directory_path: 目录路径
-        include_content: 是否包含文件内容
-        max_depth: 最大递归深度
-        current_depth: 当前递归深度
+        directory_path: Directory path
+        include_content: Whether to include file content
+        max_depth: Maximum recursion depth
+        current_depth: Current recursion depth
     """
     if current_depth >= max_depth:
         return []
@@ -93,16 +97,16 @@ def read_directory_tree(directory_path: str, include_content: bool = False, max_
     nodes = []
     
     try:
-        # 获取所有项目并排序（文件夹优先）
+        # Get all items and sort (folders first)
         items = sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name))
         
         for item in items:
-            # 跳过忽略的文件和文件夹
+            # Skip ignored files and folders
             if should_ignore(item):
                 continue
             
             if item.is_dir():
-                # 处理文件夹
+                # Process folder - use absolute path
                 children = read_directory_tree(
                     str(item),
                     include_content=include_content,
@@ -112,21 +116,21 @@ def read_directory_tree(directory_path: str, include_content: bool = False, max_
                 nodes.append(FileNode(
                     name=item.name,
                     type='folder',
-                    path=str(item.relative_to(path.parent)),
+                    path=str(item.absolute()),
                     children=children if children else None
                 ))
             else:
-                # 处理文件
+                # Process file - use absolute path
                 file_node = FileNode(
                     name=item.name,
                     type='file',
-                    path=str(item.relative_to(path.parent)),
+                    path=str(item.absolute()),
                     language=get_language(item.name)
                 )
                 nodes.append(file_node)
     
     except PermissionError:
-        # 跳过无权限访问的目录
+        # Skip directories without permission
         pass
     
     return nodes
@@ -140,14 +144,14 @@ def read_root():
 @app.get("/api/files/tree")
 def get_file_tree(path: str, max_depth: int = 5) -> List[FileNode]:
     """
-    获取目录树结构
+    Get directory tree structure
     
     Args:
-        path: 目录路径
-        max_depth: 最大递归深度，默认5层
+        path: Directory path
+        max_depth: Maximum recursion depth, default 5
     """
     try:
-        # 验证路径是否存在
+        # Validate path exists
         if not Path(path).exists():
             raise HTTPException(status_code=404, detail=f"Path not found: {path}")
         
@@ -166,10 +170,10 @@ def get_file_tree(path: str, max_depth: int = 5) -> List[FileNode]:
 @app.get("/api/files/content")
 def get_file_content(path: str) -> dict:
     """
-    获取文件内容
+    Get file content
     
     Args:
-        path: 文件路径
+        path: File path
     """
     try:
         file_path = Path(path)
@@ -180,16 +184,16 @@ def get_file_content(path: str) -> dict:
         if not file_path.is_file():
             raise HTTPException(status_code=400, detail=f"Path is not a file: {path}")
         
-        # 检查文件大小（限制为 1MB）
+        # Check file size (limit to 1MB)
         if file_path.stat().st_size > 1024 * 1024:
             raise HTTPException(status_code=400, detail="File too large (max 1MB)")
         
-        # 尝试读取文件内容
+        # Try to read file content
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
         except UnicodeDecodeError:
-            # 如果不是文本文件
+            # Not a text file
             raise HTTPException(status_code=400, detail="File is not a text file")
         
         return {
@@ -197,6 +201,47 @@ def get_file_content(path: str) -> dict:
             "name": file_path.name,
             "content": content,
             "language": get_language(file_path.name)
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+class SaveFileRequest(BaseModel):
+    path: str
+    content: str
+
+
+@app.post("/api/files/save")
+def save_file_content(request: SaveFileRequest) -> dict:
+    """
+    Save file content
+    
+    Args:
+        request: SaveFileRequest containing path and content
+    """
+    try:
+        file_path = Path(request.path)
+        
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail=f"File not found: {request.path}")
+        
+        if not file_path.is_file():
+            raise HTTPException(status_code=400, detail=f"Path is not a file: {request.path}")
+        
+        # Write file content
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(request.content)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to write file: {str(e)}")
+        
+        return {
+            "success": True,
+            "message": "File saved successfully",
+            "path": str(file_path)
         }
     
     except HTTPException:

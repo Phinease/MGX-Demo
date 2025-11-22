@@ -7,8 +7,8 @@ import ChatPanel from '@/components/ChatPanel';
 import CodePanel from '@/components/CodePanel';
 import AuthModal from '@/components/AuthModal';
 import { User, Message } from '@/types';
-import { mockConversation, mockFileTree } from '@/lib/mockData';
 import { signIn, signUp, signOut, getCurrentUser } from '@/lib/supabase';
+import { useFileTree } from '@/hooks/useFileTree';
 import { toast } from 'sonner';
 
 const queryClient = new QueryClient();
@@ -16,8 +16,20 @@ const queryClient = new QueryClient();
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>(mockConversation.messages);
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [projectPath] = useState<string>('/Users/shuangruichen/Code/MGX-Demo');
+  
+  // Use file tree hook to load real file system data
+  const { 
+    fileTree, 
+    isLoading: isLoadingFileTree,
+    error: fileTreeError,
+    isBackendConnected,
+    loadFileTree 
+  } = useFileTree({
+    projectPath,
+    autoLoad: true,
+  });
 
   useEffect(() => {
     checkUser();
@@ -62,33 +74,13 @@ const App = () => {
     setUser(null);
     toast.success('Logged out successfully');
   };
-
-  const handleSendMessage = (content: string) => {
-    const newMessage: Message = {
-      id: `msg-${Date.now()}`,
-      role: 'user',
-      contents: [{ type: 'text', content }],
-      timestamp: new Date().toISOString(),
-    };
-    setMessages([...messages, newMessage]);
-
-    setIsStreaming(true);
-    setTimeout(() => {
-      const agentMessage: Message = {
-        id: `msg-${Date.now() + 1}`,
-        role: 'agent',
-        contents: [
-          {
-            type: 'text',
-            content: 'I understand your request. Let me help you with that.',
-          },
-        ],
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, agentMessage]);
-      setIsStreaming(false);
-    }, 1500);
-  };
+  
+  // Show file tree loading errors
+  useEffect(() => {
+    if (fileTreeError) {
+      toast.error(fileTreeError);
+    }
+  }, [fileTreeError]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -99,11 +91,16 @@ const App = () => {
 
           <div className="flex-1 flex overflow-hidden">
             <div className="w-1/3">
-              <ChatPanel messages={messages} onSendMessage={handleSendMessage} isStreaming={isStreaming} />
+              <ChatPanel messages={messages} setMessages={setMessages} />
             </div>
 
             <div className="w-2/3">
-              <CodePanel fileTree={mockFileTree} />
+              <CodePanel 
+                fileTree={fileTree} 
+                projectPath={projectPath}
+                isLoading={isLoadingFileTree}
+                onRefresh={loadFileTree}
+              />
             </div>
           </div>
 
