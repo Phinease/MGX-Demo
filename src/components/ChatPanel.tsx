@@ -11,6 +11,9 @@ import { toast } from 'sonner';
 interface ChatPanelProps {
   messages: Message[];
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+  // Conversation management
+  currentConversationId: string | null;
+  onSaveMessage?: (conversationId: string, message: Message) => void;
   // Coding preview callbacks
   onFileWriteStart?: (filePath: string, fileContent: string) => void;
   onFileWriteContent?: (content: string) => void;
@@ -23,16 +26,21 @@ interface ChatPanelProps {
     port: number;
   }) => void;
   onProjectStop?: () => void;
+  // Project initialization callback
+  onProjectInit?: (projectPath: string, projectName: string) => void;
 }
 
 export default function ChatPanel({
   messages,
   setMessages,
+  currentConversationId,
+  onSaveMessage,
   onFileWriteStart,
   onFileWriteContent,
   onFileWriteComplete,
   onProjectRun,
   onProjectStop,
+  onProjectInit,
 }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -62,6 +70,11 @@ export default function ChatPanel({
       };
       
       setMessages(prev => [...prev, userMessage]);
+      
+      // Save user message to conversation
+      if (currentConversationId && onSaveMessage) {
+        onSaveMessage(currentConversationId, userMessage);
+      }
       setIsStreaming(true);
 
       // Create AbortController for this request
@@ -262,6 +275,21 @@ export default function ChatPanel({
           else if (chunk.type === 'tool_result') {
             console.log('[ChatPanel] Tool result:', chunk.toolName, chunk.toolOutput);
             
+            // 检查是否是 initialize_project 工具调用成功
+            if (chunk.toolName === 'initialize_project' && chunk.toolOutput) {
+              try {
+                const output = typeof chunk.toolOutput === 'string' 
+                  ? JSON.parse(chunk.toolOutput) 
+                  : chunk.toolOutput;
+                
+                if (output.success && output.projectPath && onProjectInit) {
+                  onProjectInit(output.projectPath, output.projectName);
+                }
+              } catch (e) {
+                console.error('[ChatPanel] Failed to parse initialize_project output:', e);
+              }
+            }
+            
             // 检查是否是 run_project 工具调用成功
             if (chunk.toolName === 'run_project' && chunk.toolOutput) {
               try {
@@ -350,6 +378,21 @@ export default function ChatPanel({
         // 通知文件写入完成
         if (onFileWriteComplete) {
           onFileWriteComplete();
+        }
+        
+        // Save agent message to conversation
+        if (currentConversationId && onSaveMessage && (textChunks.length > 0 || toolCalls.size > 0)) {
+          const finalAgentMessage: Message = {
+            id: agentMessageId,
+            role: 'agent',
+            contents: [
+              ...Array.from(toolCalls.values()),
+              ...(customUpdates.length > 0 ? [{ type: 'custom' as const, content: customUpdates.join('\n') }] : []),
+              ...(textChunks.length > 0 ? [{ type: 'text' as const, content: textChunks.join('') }] : []),
+            ],
+            timestamp: new Date().toISOString(),
+          };
+          onSaveMessage(currentConversationId, finalAgentMessage);
         }
         
         // 如果没有生成任何内容，显示提示消息

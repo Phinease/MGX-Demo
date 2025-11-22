@@ -13,6 +13,7 @@ interface EditorPanelProps {
   projectPath: string;
   isLoading?: boolean;
   onRefresh?: () => void;
+  projectInitialized?: boolean;
 }
 
 /**
@@ -24,6 +25,7 @@ export default function EditorPanel({
   projectPath, 
   isLoading: isLoadingTree, 
   onRefresh,
+  projectInitialized = true,
 }: EditorPanelProps) {
   const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['src']));
@@ -169,6 +171,29 @@ export default function EditorPanel({
       </div>
     ));
   };
+
+  // Show not initialized message
+  if (!projectInitialized) {
+    return (
+      <div className="flex h-full items-center justify-center bg-muted/20">
+        <div className="text-center space-y-4 p-8 max-w-md">
+          <div className="mx-auto h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+            <AlertCircle className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-semibold">Project Not Initialized</h3>
+          <p className="text-sm text-muted-foreground">
+            This conversation doesn't have a project yet. Ask the AI to initialize a project to get started with code editing.
+          </p>
+          <div className="pt-4 text-xs text-muted-foreground space-y-1">
+            <p>💡 Try saying:</p>
+            <p className="font-mono bg-muted px-3 py-2 rounded">
+              "Initialize a new project for me"
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full overflow-hidden">

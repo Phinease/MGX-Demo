@@ -30,6 +30,8 @@ interface WorkspacePanelProps {
   onClearPreview?: () => void;
   /** Running project information */
   runningProject?: RunningProject | null;
+  /** Whether project is initialized */
+  projectInitialized?: boolean;
 }
 
 /**
@@ -44,6 +46,7 @@ export default function WorkspacePanel({
   codingPreview,
   onClearPreview,
   runningProject,
+  projectInitialized = true,
 }: WorkspacePanelProps) {
   const [activeTab, setActiveTab] = useState<string>('preview');
 
@@ -100,6 +103,7 @@ export default function WorkspacePanel({
             projectPath={projectPath}
             isLoading={isLoading}
             onRefresh={onRefresh}
+            projectInitialized={projectInitialized}
           />
         </TabsContent>
       </Tabs>
