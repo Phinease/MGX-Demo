@@ -1,0 +1,16 @@
+services:
+  mgx-demo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mgx-demo-app
+    # 使用 host 网络模式（演示环境）
+    network_mode: host
+    volumes:
+      # 挂载 generated-projects 目录，保持数据持久化
+      - ./generated-projects:/app/generated-projects
+    environment:
+      - NODE_ENV=development
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+
