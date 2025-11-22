@@ -4,7 +4,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Navigation from '@/components/Navigation';
 import ChatPanel from '@/components/ChatPanel';
-import CodePanel from '@/components/CodePanel';
+import WorkspacePanel from '@/components/WorkspacePanel';
 import AuthModal from '@/components/AuthModal';
 import { User, Message } from '@/types';
 import { signIn, signUp, signOut, getCurrentUser } from '@/lib/supabase';
@@ -19,6 +19,15 @@ const App = () => {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [projectPath] = useState<string>('/Users/shuangruichen/Code/MGX-Demo');
+  
+  // Track running project for preview
+  const [runningProject, setRunningProject] = useState<{
+    url: string;
+    processId: string;
+    projectPath: string;
+    port: number;
+    isRunning: boolean;
+  } | null>(null);
   
   // Use file tree hook to load real file system data
   const { 
@@ -110,6 +119,28 @@ const App = () => {
     completePreview();
   };
 
+  // Handle project run callback
+  const handleProjectRun = (projectInfo: {
+    url: string;
+    processId: string;
+    projectPath: string;
+    port: number;
+  }) => {
+    console.log('[App] Project started:', projectInfo);
+    setRunningProject({
+      ...projectInfo,
+      isRunning: true,
+    });
+    toast.success(`Project running at ${projectInfo.url}`);
+  };
+
+  // Handle project stop callback
+  const handleProjectStop = () => {
+    console.log('[App] Project stopped');
+    setRunningProject(null);
+    toast.info('Project stopped');
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -126,18 +157,21 @@ const App = () => {
                 onFileWriteStart={handleFileWriteStart}
                 onFileWriteContent={handleFileWriteContent}
                 onFileWriteComplete={handleFileWriteComplete}
+                onProjectRun={handleProjectRun}
+                onProjectStop={handleProjectStop}
               />
             </div>
 
-            {/* Code Panel - Right Side (includes coding preview as a tab) */}
+            {/* Workspace Panel - Right Side (includes preview, coding, and editor tabs) */}
             <div className="w-2/3">
-              <CodePanel 
+              <WorkspacePanel 
                 fileTree={fileTree} 
                 projectPath={projectPath}
                 isLoading={isLoadingFileTree}
                 onRefresh={loadFileTree}
                 codingPreview={currentPreview}
                 onClearPreview={clearPreview}
+                runningProject={runningProject}
               />
             </div>
           </div>

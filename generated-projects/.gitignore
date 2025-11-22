@@ -1,0 +1,6 @@
+# 忽略所有生成的项目
+*
+
+# 但保留 .gitignore 文件本身
+!.gitignore
+

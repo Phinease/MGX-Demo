@@ -1,0 +1,16 @@
+{
+  "agent": {
+    "templatePath": "/Users/shuangruichen/Code/MGX-Demo/shadcn-ui",
+    "projectsBasePath": "/Users/shuangruichen/Code/MGX-Demo/generated-projects"
+  },
+  "model": {
+    "name": "qwen-plus",
+    "temperature": 0.7,
+    "apiKey": "sk-cc75be06983048da82d30fc2e43d2ada",
+    "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  },
+  "backend": {
+    "apiBaseURL": "http://localhost:8000"
+  }
+}
+

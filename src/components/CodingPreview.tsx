@@ -1,14 +1,14 @@
-import { useEffect, useRef } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, FileCode, X, History } from 'lucide-react';
 import { FilePreview } from '@/hooks/useCodingPreview';
+import { Card } from '@/components/ui/card';
+import CodeEditor from './CodeEditor';
 
 interface CodingPreviewProps {
   preview: FilePreview | null;
-  previewHistory: FilePreview[];
+  previewHistory?: FilePreview[];
   onClose?: () => void;
   onClearHistory?: () => void;
 }
@@ -23,15 +23,6 @@ export default function CodingPreview({
   onClose,
   onClearHistory,
 }: CodingPreviewProps) {
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll to bottom when content updates
-  useEffect(() => {
-    if (contentRef.current && preview?.isStreaming) {
-      contentRef.current.scrollTop = contentRef.current.scrollHeight;
-    }
-  }, [preview?.content, preview?.isStreaming]);
-
   if (!preview) {
     return (
       <div className="flex flex-col h-full bg-background">
@@ -41,7 +32,7 @@ export default function CodingPreview({
               <FileCode className="h-5 w-5 text-muted-foreground" />
               <h2 className="text-lg font-semibold">Coding Preview</h2>
             </div>
-            {previewHistory.length > 0 && (
+            {previewHistory && previewHistory.length > 0 && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -64,7 +55,6 @@ export default function CodingPreview({
     );
   }
 
-  // Get file extension for syntax highlighting class
   const getFileExtension = (path: string) => {
     const parts = path.split('.');
     return parts.length > 1 ? parts[parts.length - 1] : '';
@@ -111,38 +101,46 @@ export default function CodingPreview({
         </div>
       </div>
 
-      {/* Content */}
-      <ScrollArea className="flex-1">
-        <div ref={contentRef} className="p-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center justify-between">
-                <span className="font-mono text-muted-foreground">
-                  {preview.path.split('/').pop()}
-                </span>
-                <Badge variant="outline">{extension}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <pre className="text-sm overflow-x-auto">
-                <code className={`language-${extension}`}>
-                  {preview.content || '// Waiting for content...'}
-                </code>
-              </pre>
-            </CardContent>
-          </Card>
-
-          {/* Content Stats */}
-          <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-            <span>{preview.content.length} characters</span>
-            <span>{preview.content.split('\n').length} lines</span>
-          </div>
+      {/* Content - Code Editor */}
+      <div className="flex-1 flex flex-col min-h-0 max-h-[600px] border-b">
+        <div className="h-[500px]">
+          <CodeEditor
+            content={preview.content || '// Waiting for content...'}
+            fileName={preview.path}
+            readOnly={true}
+            showMinimap={true}
+            fontSize={13}
+            options={{
+              renderLineHighlight: 'none',
+              contextmenu: false,
+              folding: true,
+              renderWhitespace: 'selection',
+              scrollbar: {
+                vertical: 'auto',
+                horizontal: 'auto',
+                verticalScrollbarSize: 12,
+                horizontalScrollbarSize: 12,
+              },
+            }}
+          />
         </div>
-      </ScrollArea>
+        
+        {/* Content Stats */}
+        <div className="px-4 py-2 bg-muted/30 flex items-center justify-between text-xs text-muted-foreground border-t">
+          <div className="flex items-center space-x-4">
+            <span className="font-mono">{extension.toUpperCase()}</span>
+            <span>{preview.content.split('\n').length} lines</span>
+            <span>{preview.content.length} characters</span>
+          </div>
+          <span className="font-mono text-muted-foreground/70">
+            {preview.path.split('/').pop()}
+          </span>
+        </div>
+      </div>
 
       {/* History Section */}
-      {previewHistory.length > 0 && (
-        <div className="border-t p-4">
+      {previewHistory && previewHistory.length > 0 && (
+        <div className="border-t p-4 flex-shrink-0">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-semibold flex items-center">
               <History className="h-4 w-4 mr-2" />

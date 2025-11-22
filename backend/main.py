@@ -2,14 +2,20 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict
 import os
 import asyncio
 import subprocess
 import json
+import shutil
+import socket
+import signal
 from pydantic import BaseModel
 
 app = FastAPI(title="File System API")
+
+# 进程管理：存储运行中的开发服务器进程
+running_processes: Dict[str, dict] = {}
 
 # Configure CORS
 app.add_middleware(
@@ -411,6 +417,451 @@ async def execute_command(request: ExecuteCommandRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+# ================== New Project Management APIs ==================
+
+class InitializeProjectRequest(BaseModel):
+    template_path: str
+    project_name: str
+    target_base_path: str
+
+
+@app.post("/api/project/initialize")
+def initialize_project(request: InitializeProjectRequest) -> dict:
+    """
+    Initialize a new project by copying the template directory
+    
+    Args:
+        request: InitializeProjectRequest containing template path, project name, and target base path
+    """
+    try:
+        template_path = Path(request.template_path)
+        target_base_path = Path(request.target_base_path)
+        
+        # Validate template path
+        if not template_path.exists():
+            raise HTTPException(status_code=404, detail=f"Template path not found: {request.template_path}")
+        if not template_path.is_dir():
+            raise HTTPException(status_code=400, detail=f"Template path is not a directory: {request.template_path}")
+        
+        # Create target base directory if it doesn't exist
+        target_base_path.mkdir(parents=True, exist_ok=True)
+        
+        # Create new project directory
+        new_project_path = target_base_path / request.project_name
+        
+        if new_project_path.exists():
+            raise HTTPException(status_code=400, detail=f"Project directory already exists: {str(new_project_path)}")
+        
+        # Copy template to new location
+        shutil.copytree(template_path, new_project_path, 
+                       ignore=shutil.ignore_patterns('node_modules', '.git', 'dist', 'build', '.mgx'))
+        
+        return {
+            "success": True,
+            "message": "Project initialized successfully",
+            "project_path": str(new_project_path.absolute()),
+            "project_name": request.project_name
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to initialize project: {str(e)}")
+
+
+class ProjectPathRequest(BaseModel):
+    project_path: str
+
+
+@app.post("/api/project/install")
+async def install_project_dependencies(request: ProjectPathRequest):
+    """
+    Install project dependencies using pnpm install
+    
+    Args:
+        request: ProjectPathRequest containing the project path
+    """
+    try:
+        project_path = Path(request.project_path)
+        
+        # Validate project path
+        if not project_path.exists():
+            raise HTTPException(status_code=404, detail=f"Project path not found: {request.project_path}")
+        if not project_path.is_dir():
+            raise HTTPException(status_code=400, detail=f"Path is not a directory: {request.project_path}")
+        
+        # Check if package.json exists
+        package_json = project_path / "package.json"
+        if not package_json.exists():
+            raise HTTPException(status_code=400, detail=f"package.json not found in: {request.project_path}")
+        
+        # Execute pnpm install
+        command = "pnpm install"
+        
+        return StreamingResponse(
+            stream_command_output(command, str(project_path), timeout=600),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to install dependencies: {str(e)}")
+
+
+@app.post("/api/project/validate")
+async def validate_project(request: ProjectPathRequest):
+    """
+    Validate project using ESLint
+    
+    Args:
+        request: ProjectPathRequest containing the project path
+    """
+    try:
+        project_path = Path(request.project_path)
+        
+        # Validate project path
+        if not project_path.exists():
+            raise HTTPException(status_code=404, detail=f"Project path not found: {request.project_path}")
+        if not project_path.is_dir():
+            raise HTTPException(status_code=400, detail=f"Path is not a directory: {request.project_path}")
+        
+        # Execute ESLint
+        command = "pnpm exec eslint --quiet ./src"
+        
+        return StreamingResponse(
+            stream_command_output(command, str(project_path), timeout=300),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to validate project: {str(e)}")
+
+
+class BuildProjectRequest(BaseModel):
+    project_path: str
+
+
+@app.post("/api/project/build")
+async def build_project(request: BuildProjectRequest):
+    """
+    Build the project for production using pnpm build
+    
+    Args:
+        request: BuildProjectRequest containing the project path
+    """
+    try:
+        project_path = Path(request.project_path)
+        
+        # Validate project path
+        if not project_path.exists():
+            raise HTTPException(status_code=404, detail=f"Project path not found: {request.project_path}")
+        if not project_path.is_dir():
+            raise HTTPException(status_code=400, detail=f"Path is not a directory: {request.project_path}")
+        
+        # Check if package.json exists
+        package_json = project_path / "package.json"
+        if not package_json.exists():
+            raise HTTPException(status_code=400, detail=f"package.json not found in: {request.project_path}")
+        
+        # Execute pnpm build
+        command = "pnpm build"
+        timeout = 600  # 10 minutes for build
+        
+        return StreamingResponse(
+            stream_command_output(command, str(project_path), timeout=timeout),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to build project: {str(e)}")
+
+
+def find_available_port(start_port: int = 5173, count: int = 1) -> List[int]:
+    """
+    Find available ports starting from start_port
+    
+    Args:
+        start_port: Port to start searching from
+        count: Number of ports to find
+        
+    Returns:
+        List of available port numbers
+    """
+    available_ports = []
+    port = start_port
+    
+    while len(available_ports) < count and port < 65535:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('', port))
+                available_ports.append(port)
+        except OSError:
+            pass
+        port += 1
+    
+    return available_ports
+
+
+@app.get("/api/project/find-port")
+def find_port(start_port: int = 5173, count: int = 1) -> dict:
+    """
+    Find available ports
+    
+    Args:
+        start_port: Port to start searching from
+        count: Number of ports to find
+    """
+    try:
+        ports = find_available_port(start_port, count)
+        
+        if len(ports) < count:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Could only find {len(ports)} available ports out of {count} requested"
+            )
+        
+        return {
+            "ports": ports,
+            "start_port": start_port,
+            "count": len(ports)
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to find available port: {str(e)}")
+
+
+class RunProjectRequest(BaseModel):
+    project_path: str
+    port: Optional[int] = None
+
+
+@app.post("/api/project/run")
+async def run_project(request: RunProjectRequest):
+    """
+    Run the project development server in background
+    
+    Args:
+        request: RunProjectRequest containing the project path and optional port
+    """
+    try:
+        project_path = Path(request.project_path)
+        
+        # Validate project path
+        if not project_path.exists():
+            raise HTTPException(status_code=404, detail=f"Project path not found: {request.project_path}")
+        if not project_path.is_dir():
+            raise HTTPException(status_code=400, detail=f"Path is not a directory: {request.project_path}")
+        
+        # Check if package.json exists
+        package_json = project_path / "package.json"
+        if not package_json.exists():
+            raise HTTPException(status_code=400, detail=f"package.json not found in: {request.project_path}")
+        
+        # Check if already running
+        project_path_str = str(project_path.absolute())
+        for proc_id, proc_info in running_processes.items():
+            if proc_info['project_path'] == project_path_str:
+                # Check if process is still running
+                if proc_info['process'].poll() is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Project already running on port {proc_info['port']} with process ID {proc_id}"
+                    )
+                else:
+                    # Process died, remove it
+                    del running_processes[proc_id]
+                    break
+        
+        # Find available port if not specified
+        if request.port is None:
+            ports = find_available_port(5173, 1)
+            if not ports:
+                raise HTTPException(status_code=400, detail="No available ports found")
+            port = ports[0]
+        else:
+            port = request.port
+            # Check if port is available
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.bind(('', port))
+            except OSError:
+                raise HTTPException(status_code=400, detail=f"Port {port} is already in use")
+        
+        # Start dev server in background
+        import shlex
+        command = f"pnpm dev --port {port}"
+        cmd_parts = shlex.split(command)
+        
+        process = subprocess.Popen(
+            cmd_parts,
+            cwd=str(project_path),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # Generate process ID
+        process_id = f"proc-{project_path.name}-{port}"
+        
+        # Store process info
+        running_processes[process_id] = {
+            'process': process,
+            'project_path': project_path_str,
+            'port': port,
+            'command': command,
+            'pid': process.pid
+        }
+        
+        # Wait a bit to check if process started successfully
+        await asyncio.sleep(2)
+        
+        if process.poll() is not None:
+            # Process already terminated
+            del running_processes[process_id]
+            raise HTTPException(status_code=500, detail="Failed to start development server")
+        
+        return {
+            "success": True,
+            "process_id": process_id,
+            "project_path": project_path_str,
+            "port": port,
+            "url": f"http://localhost:{port}",
+            "command": command,
+            "pid": process.pid
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to run project: {str(e)}")
+
+
+class StopProjectRequest(BaseModel):
+    process_id: Optional[str] = None
+    project_path: Optional[str] = None
+
+
+@app.post("/api/project/stop")
+def stop_project(request: StopProjectRequest):
+    """
+    Stop a running development server
+    
+    Args:
+        request: StopProjectRequest containing either process_id or project_path
+    """
+    try:
+        if not request.process_id and not request.project_path:
+            raise HTTPException(status_code=400, detail="Either process_id or project_path must be provided")
+        
+        # Find the process to stop
+        process_to_stop = None
+        process_id_to_remove = None
+        
+        if request.process_id:
+            if request.process_id in running_processes:
+                process_to_stop = running_processes[request.process_id]
+                process_id_to_remove = request.process_id
+        elif request.project_path:
+            project_path_abs = str(Path(request.project_path).absolute())
+            for proc_id, proc_info in running_processes.items():
+                if proc_info['project_path'] == project_path_abs:
+                    process_to_stop = proc_info
+                    process_id_to_remove = proc_id
+                    break
+        
+        if not process_to_stop:
+            raise HTTPException(status_code=404, detail="No running process found")
+        
+        # Stop the process
+        process = process_to_stop['process']
+        
+        if process.poll() is None:
+            # Process is still running, terminate it
+            try:
+                # Try graceful termination first
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    # Force kill if termination didn't work
+                    process.kill()
+                    process.wait()
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to stop process: {str(e)}")
+        
+        # Remove from running processes
+        if process_id_to_remove:
+            del running_processes[process_id_to_remove]
+        
+        return {
+            "success": True,
+            "message": "Development server stopped successfully",
+            "process_id": process_id_to_remove
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to stop project: {str(e)}")
+
+
+@app.get("/api/project/list-running")
+def list_running_projects():
+    """
+    List all running development servers
+    """
+    try:
+        # Clean up dead processes
+        dead_processes = []
+        for proc_id, proc_info in running_processes.items():
+            if proc_info['process'].poll() is not None:
+                dead_processes.append(proc_id)
+        
+        for proc_id in dead_processes:
+            del running_processes[proc_id]
+        
+        # Return info about running processes
+        result = []
+        for proc_id, proc_info in running_processes.items():
+            result.append({
+                "process_id": proc_id,
+                "project_path": proc_info['project_path'],
+                "port": proc_info['port'],
+                "url": f"http://localhost:{proc_info['port']}",
+                "pid": proc_info['pid']
+            })
+        
+        return {
+            "running_projects": result,
+            "count": len(result)
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list running projects: {str(e)}")
 
 
 if __name__ == "__main__":

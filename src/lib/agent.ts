@@ -1,266 +1,10 @@
 import { ChatOpenAI } from '@langchain/openai';
-import { createAgent, tool } from 'langchain';
+import { createAgent } from 'langchain';
 import { HumanMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
-import { z } from 'zod';
 
-// 后端 API 基础 URL
-const API_BASE_URL = 'http://localhost:8000';
-
-/**
- * 工具 1: 读取文件内容
- */
-const readFileTool = tool(
-  async (input) => {
-    const { path } = input;
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/files/content?path=${encodeURIComponent(path)}`);
-      
-      if (!response.ok) {
-        const error = await response.json();
-        return `Error: ${error.detail}`;
-      }
-      
-      const data = await response.json();
-      
-      return JSON.stringify({
-        path: data.path,
-        name: data.name,
-        language: data.language,
-        content: data.content,
-        size: data.content.length
-      }, null, 2);
-    } catch (error) {
-      return `Failed to read file: ${error instanceof Error ? error.message : String(error)}`;
-    }
-  },
-  {
-    name: 'read_file',
-    description: 'Read the content of a file from the backend filesystem. Use this to view code, configuration files, or any text-based file.',
-    schema: z.object({
-      path: z.string().describe('The absolute path to the file you want to read'),
-    }),
-  }
-);
-
-/**
- * 工具 2: 读取文件树结构
- */
-const readFileTreeTool = tool(
-  async (input) => {
-    const { path, maxDepth = 3 } = input;
-    
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/files/tree?path=${encodeURIComponent(path)}&max_depth=${maxDepth}`
-      );
-      
-      if (!response.ok) {
-        const error = await response.json();
-        return `Error: ${error.detail}`;
-      }
-      
-      const tree = await response.json();
-      return JSON.stringify(tree, null, 2);
-    } catch (error) {
-      return `Failed to read directory tree: ${error instanceof Error ? error.message : String(error)}`;
-    }
-  },
-  {
-    name: 'read_file_tree',
-    description: 'Read the directory tree structure of a project. This gives you an overview of all files and folders in a directory. Very useful for understanding project structure.',
-    schema: z.object({
-      path: z.string().describe('The absolute path to the directory you want to explore'),
-      maxDepth: z.number().optional().describe('Maximum depth to traverse (default: 3, max: 10)'),
-    }),
-  }
-);
-
-/**
- * 工具 3: 创建或重写文件
- */
-const writeFileTool = tool(
-  async (input) => {
-    const { path, content, createIfNotExists = false } = input;
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/files/write`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          path,
-          content,
-          create_if_not_exists: createIfNotExists,
-        }),
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        return `Error: ${error.detail}`;
-      }
-      
-      const result = await response.json();
-      return JSON.stringify(result, null, 2);
-    } catch (error) {
-      return `Failed to write file: ${error instanceof Error ? error.message : String(error)}`;
-    }
-  },
-  {
-    name: 'write_file',
-    description: 'Create a new file or completely overwrite an existing file with new content. Use this to create new code files, configuration files, or update existing files.',
-    schema: z.object({
-      path: z.string().describe('The absolute path where the file should be written'),
-      content: z.string().describe('The complete content to write to the file'),
-      createIfNotExists: z.boolean().optional().describe('If true, create the file and parent directories if they don\'t exist (default: false)'),
-    }),
-  }
-);
-
-/**
- * 工具 4: 执行命令
- */
-const executeCommandTool = tool(
-  async (input) => {
-    const { command, workingDir, timeout = 300 } = input;
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/command/execute`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          command,
-          working_dir: workingDir,
-          timeout,
-        }),
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        return `Error: ${error.detail}`;
-      }
-      
-      // 读取流式响应
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let fullOutput = '';
-      
-      if (!reader) {
-        return 'Error: No response stream available';
-      }
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        
-        if (done) {
-          break;
-        }
-        
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.substring(6).trim();
-            
-            if (data === '[DONE]') {
-              continue;
-            }
-            
-            try {
-              const event = JSON.parse(data);
-              
-              if (event.type === 'stdout' || event.type === 'stderr') {
-                fullOutput += event.data;
-              }
-            } catch (e) {
-              // 忽略 JSON 解析错误
-            }
-          }
-        }
-      }
-      
-      return fullOutput || 'Command executed successfully (no output)';
-    } catch (error) {
-      return `Failed to execute command: ${error instanceof Error ? error.message : String(error)}`;
-    }
-  },
-  {
-    name: 'execute_command',
-    description: 'Execute a shell command on the backend server. Use this to run npm/pnpm commands, git operations, build scripts, or any other shell commands. The output will be streamed in real-time.',
-    schema: z.object({
-      command: z.string().describe('The shell command to execute (e.g., "npm install", "git status", "pnpm build")'),
-      workingDir: z.string().optional().describe('The working directory where the command should be executed (optional)'),
-      timeout: z.number().optional().describe('Maximum execution time in seconds (default: 300)'),
-    }),
-  }
-);
-
-/**
- * 工具 5: 搜索工具
- */
-const searchTool = tool(
-  async ({ query }) => {
-    // 模拟搜索延迟
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    return `Search results for "${query}": Found relevant information about ${query}. This is a simulated search result with some details.`;
-  },
-  {
-    name: 'search',
-    description: 'Search for information on the internet. Use this when you need to find current information or answer questions about recent events.',
-    schema: z.object({
-      query: z.string().describe('The search query to look up'),
-    }),
-  }
-);
-
-/**
- * 工具 6: 计算器工具
- */
-const calculatorTool = tool(
-  async ({ expression }) => {
-    try {
-      const result = eval(expression);
-      return `The result of ${expression} is ${result}`;
-    } catch (error) {
-      return `Error calculating ${expression}: ${error}`;
-    }
-  },
-  {
-    name: 'calculator',
-    description: 'Perform mathematical calculations. Use this when you need to solve math problems or perform computations.',
-    schema: z.object({
-      expression: z.string().describe('The mathematical expression to evaluate (e.g., "2 + 2", "10 * 5")'),
-    }),
-  }
-);
-
-/** 工具 7: 获取天气 */
-const getWeather = tool(
-  ({ location }) => `Weather in ${location}: Sunny, 72°F`,
-  {
-    name: "get_weather",
-    description: "Get weather information for a location",
-    schema: z.object({
-      location: z.string().describe("The location to get weather for"),
-    }),
-  }
-);
-
-// 所有工具列表
-const tools = [
-  readFileTool,
-  readFileTreeTool,
-  writeFileTool,
-  executeCommandTool,
-  searchTool,
-  calculatorTool,
-  getWeather
-];
+// 导入工具和提示词
+import { tools } from './tools';
+import { SYSTEM_PROMPTS } from './prompts';
 
 // 配置 OpenAI 兼容模型（通义千问）
 const model = new ChatOpenAI({
@@ -272,29 +16,11 @@ const model = new ChatOpenAI({
   },
 });
 
-// 创建 agent
+// 创建前端编码智能体
 const agent = createAgent({
   model: model,
   tools: tools,
-  systemPrompt: `You are a powerful AI assistant specialized in software development and system operations.
-
-You have access to tools that allow you to:
-- Read and write files in the project
-- Explore project structure
-- Execute shell commands (npm, git, build tools, etc.)
-- Search for information
-- Perform calculations
-
-Your goal is to help users build complete frontend projects, deploy applications, and manage the development workflow.
-
-When working on tasks:
-1. First understand the project structure using read_file_tree
-2. Read relevant files to understand the codebase
-3. Make necessary changes using write_file
-4. Execute commands to install dependencies, build, test, or deploy
-5. Always explain what you're doing and why
-
-Be proactive, thorough, and help users accomplish their development goals efficiently.`,
+  systemPrompt: SYSTEM_PROMPTS.FRONTEND_CODING,
 });
 
 // 导出类型定义
@@ -315,12 +41,23 @@ export interface StreamChunk {
 // 流式执行 agent - 使用多种 stream mode 获取完整信息
 export async function* streamAgent(
   input: string,
-  chatHistory: BaseMessage[] = []
+  chatHistory: BaseMessage[] = [],
+  abortSignal?: AbortSignal
 ): AsyncGenerator<StreamChunk> {
   console.log('[Agent] Starting stream for input:', input);
   console.log('[Agent] Chat history length:', chatHistory.length);
   
   try {
+    // 检查是否已经被取消
+    if (abortSignal?.aborted) {
+      yield {
+        type: 'error',
+        content: 'Request was aborted',
+        timestamp: new Date().toISOString(),
+      };
+      return;
+    }
+
     // 构建消息列表
     const messages = [
       ...chatHistory,
@@ -344,6 +81,17 @@ export async function* streamAgent(
     const seenSteps = new Set<string>(); // 跟踪已处理的步骤
 
     for await (const chunk of stream) {
+      // 检查是否被取消
+      if (abortSignal?.aborted) {
+        console.log('[Agent] Stream aborted by user');
+        yield {
+          type: 'error',
+          content: 'Request was aborted by user',
+          timestamp: new Date().toISOString(),
+        };
+        break;
+      }
+
       // Multiple streaming modes 返回格式：[streamMode, data]
       if (!Array.isArray(chunk) || chunk.length !== 2) {
         console.warn('[Agent] Unexpected chunk format:', chunk);
@@ -610,4 +358,7 @@ export function convertToLangChainMessages(messages: Array<{ role: string; conte
   });
 }
 
-export { agent, model, tools };
+// 导出 agent 和相关工具
+export { agent, model };
+export { tools } from './tools';
+export { SYSTEM_PROMPTS } from './prompts';

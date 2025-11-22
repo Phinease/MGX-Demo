@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Send, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { Send, Loader2, CheckCircle2, XCircle, Square, ChevronDown, ChevronRight } from 'lucide-react';
 import { Message, MessageContent } from '@/types';
 import { streamAgent, convertToLangChainMessages } from '@/lib/agent';
 import { toast } from 'sonner';
@@ -15,6 +15,14 @@ interface ChatPanelProps {
   onFileWriteStart?: (filePath: string, fileContent: string) => void;
   onFileWriteContent?: (content: string) => void;
   onFileWriteComplete?: () => void;
+  // Project run callbacks
+  onProjectRun?: (projectInfo: {
+    url: string;
+    processId: string;
+    projectPath: string;
+    port: number;
+  }) => void;
+  onProjectStop?: () => void;
 }
 
 export default function ChatPanel({
@@ -23,10 +31,14 @@ export default function ChatPanel({
   onFileWriteStart,
   onFileWriteContent,
   onFileWriteComplete,
+  onProjectRun,
+  onProjectStop,
 }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -51,6 +63,10 @@ export default function ChatPanel({
       
       setMessages(prev => [...prev, userMessage]);
       setIsStreaming(true);
+
+      // Create AbortController for this request
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
 
       // Create agent message that will be updated with streaming chunks
       const agentMessageId = `msg-${Date.now() + 1}`;
@@ -80,7 +96,7 @@ export default function ChatPanel({
         const customUpdates: string[] = [];
         let chunkCount = 0;
 
-        for await (const chunk of streamAgent(userInput, chatHistory)) {
+        for await (const chunk of streamAgent(userInput, chatHistory, abortController.signal)) {
           chunkCount++;
           console.log(`[ChatPanel] Chunk #${chunkCount}:`, chunk);
 
@@ -246,6 +262,41 @@ export default function ChatPanel({
           else if (chunk.type === 'tool_result') {
             console.log('[ChatPanel] Tool result:', chunk.toolName, chunk.toolOutput);
             
+            // 检查是否是 run_project 工具调用成功
+            if (chunk.toolName === 'run_project' && chunk.toolOutput) {
+              try {
+                const output = typeof chunk.toolOutput === 'string' 
+                  ? JSON.parse(chunk.toolOutput) 
+                  : chunk.toolOutput;
+                
+                if (output.success && output.url && onProjectRun) {
+                  onProjectRun({
+                    url: output.url,
+                    processId: output.processId,
+                    projectPath: output.projectPath,
+                    port: output.port,
+                  });
+                }
+              } catch (e) {
+                console.error('[ChatPanel] Failed to parse run_project output:', e);
+              }
+            }
+            
+            // 检查是否是 stop_project 工具调用成功
+            if (chunk.toolName === 'stop_project' && chunk.toolOutput) {
+              try {
+                const output = typeof chunk.toolOutput === 'string' 
+                  ? JSON.parse(chunk.toolOutput) 
+                  : chunk.toolOutput;
+                
+                if (output.success && onProjectStop) {
+                  onProjectStop();
+                }
+              } catch (e) {
+                console.error('[ChatPanel] Failed to parse stop_project output:', e);
+              }
+            }
+            
             const toolCall = toolCalls.get(chunk.toolName || 'unknown');
             if (toolCall && toolCall.toolCall) {
               // 检查是否是错误结果
@@ -321,27 +372,62 @@ export default function ChatPanel({
         }
       } catch (error) {
         console.error('[ChatPanel] Agent error:', error);
-        toast.error('Failed to get agent response: ' + (error instanceof Error ? error.message : String(error)));
         
-        // Add error message
-        setMessages(prev => {
-          const newMessages = [...prev];
-          const msgIndex = newMessages.findIndex(m => m.id === agentMessageId);
-          if (msgIndex !== -1) {
-            newMessages[msgIndex] = {
-              ...newMessages[msgIndex],
-              contents: [{
-                type: 'text',
-                content: 'Sorry, I encountered an error while processing your request.',
-              }],
-            };
-          }
-          return newMessages;
-        });
+        // Check if it was an abort
+        if (abortController.signal.aborted) {
+          toast.info('Request was stopped by user');
+          
+          // Add stopped message
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const msgIndex = newMessages.findIndex(m => m.id === agentMessageId);
+            if (msgIndex !== -1) {
+              const currentContents = newMessages[msgIndex].contents;
+              newMessages[msgIndex] = {
+                ...newMessages[msgIndex],
+                contents: [
+                  ...currentContents,
+                  {
+                    type: 'text',
+                    content: '\n\n[Request stopped by user]',
+                  }
+                ],
+              };
+            }
+            return newMessages;
+          });
+        } else {
+          toast.error('Failed to get agent response: ' + (error instanceof Error ? error.message : String(error)));
+          
+          // Add error message
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const msgIndex = newMessages.findIndex(m => m.id === agentMessageId);
+            if (msgIndex !== -1) {
+              newMessages[msgIndex] = {
+                ...newMessages[msgIndex],
+                contents: [{
+                  type: 'text',
+                  content: 'Sorry, I encountered an error while processing your request.',
+                }],
+              };
+            }
+            return newMessages;
+          });
+        }
       } finally {
         setIsStreaming(false);
+        abortControllerRef.current = null;
         console.log('[ChatPanel] Streaming finished');
       }
+    }
+  };
+
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      console.log('[ChatPanel] Aborting request...');
+      abortControllerRef.current.abort();
+      toast.info('Stopping request...');
     }
   };
 
@@ -352,32 +438,113 @@ export default function ChatPanel({
     }
   };
 
+  // 切换工具卡片的展开/折叠状态
+  const toggleToolExpanded = (toolId: string) => {
+    setExpandedTools(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(toolId)) {
+        newSet.delete(toolId);
+      } else {
+        newSet.add(toolId);
+      }
+      return newSet;
+    });
+  };
+
+  // 截断长文本用于预览
+  const truncateText = (text: string, maxLength: number = 100): string => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+  };
+
   const renderToolCall = (content: MessageContent) => {
     if (!content.toolCall) return null;
 
-    const { name, status, input, output } = content.toolCall;
+    const { name, status, input, output, id } = content.toolCall;
+    const toolId = id || `${name}-${content.toolCall.timestamp}`;
+    const isExpanded = expandedTools.has(toolId);
+
+    // 格式化输出内容
+    const formatContent = (data: any): string => {
+      if (typeof data === 'string') return data;
+      return JSON.stringify(data, null, 2);
+    };
+
+    const inputText = input ? formatContent(input) : '';
+    const outputText = output ? formatContent(output) : '';
 
     return (
-      <Card className="p-3 mt-2 bg-muted/50">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center space-x-2">
-            <code className="text-sm font-mono text-primary">{name}</code>
-            {status === 'running' && <Loader2 className="h-4 w-4 animate-spin text-blue-500" />}
-            {status === 'completed' && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-            {status === 'failed' && <XCircle className="h-4 w-4 text-red-500" />}
+      <Card className="mt-2 bg-muted/50 overflow-hidden">
+        {/* 工具头部 - 始终可见 */}
+        <div 
+          className="p-3 cursor-pointer hover:bg-muted/70 transition-colors"
+          onClick={() => toggleToolExpanded(toolId)}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2 flex-1 min-w-0">
+              <div className="flex items-center space-x-2">
+                {isExpanded ? (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                )}
+                <code className="text-sm font-mono text-primary font-semibold">{name}</code>
+              </div>
+              {status === 'running' && <Loader2 className="h-4 w-4 animate-spin text-blue-500" />}
+              {status === 'completed' && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+              {status === 'failed' && <XCircle className="h-4 w-4 text-red-500" />}
+            </div>
+            <Badge 
+              variant={status === 'completed' ? 'default' : status === 'failed' ? 'destructive' : 'secondary'}
+              className="flex-shrink-0"
+            >
+              {status}
+            </Badge>
           </div>
-          <Badge variant={status === 'completed' ? 'default' : status === 'failed' ? 'destructive' : 'secondary'}>
-            {status}
-          </Badge>
+          
+          {/* 预览信息 - 折叠时显示 */}
+          {!isExpanded && (input || output) && (
+            <div className="mt-2 text-xs text-muted-foreground">
+              {input && (
+                <div className="truncate">
+                  <span className="font-semibold">Input: </span>
+                  {truncateText(typeof input === 'string' ? input : JSON.stringify(input), 80)}
+                </div>
+              )}
+              {output && (
+                <div className="truncate mt-1">
+                  <span className="font-semibold">Output: </span>
+                  {truncateText(typeof output === 'string' ? output : JSON.stringify(output), 80)}
+                </div>
+              )}
+            </div>
+          )}
         </div>
-        {input && (
-          <div className="text-xs text-muted-foreground mb-1">
-            <span className="font-semibold">Input:</span> {JSON.stringify(input)}
-          </div>
-        )}
-        {output && (
-          <div className="text-xs text-muted-foreground">
-            <span className="font-semibold">Output:</span> {output}
+
+        {/* 详细信息 - 展开时显示 */}
+        {isExpanded && (
+          <div className="px-3 pb-3 space-y-3 border-t pt-3">
+            {input && (
+              <div className="space-y-1">
+                <div className="text-xs font-semibold text-muted-foreground">Input:</div>
+                <div className="bg-background rounded p-2 text-xs font-mono overflow-x-auto max-h-40 overflow-y-auto">
+                  <pre className="whitespace-pre-wrap break-words">{inputText}</pre>
+                </div>
+              </div>
+            )}
+            {output && (
+              <div className="space-y-1">
+                <div className="text-xs font-semibold text-muted-foreground">Output:</div>
+                <div className="bg-background rounded p-2 text-xs font-mono overflow-x-auto max-h-60 overflow-y-auto">
+                  <pre className="whitespace-pre-wrap break-words">{outputText}</pre>
+                </div>
+              </div>
+            )}
+            {!input && !output && (
+              <div className="text-xs text-muted-foreground italic">
+                No details available
+              </div>
+            )}
           </div>
         )}
       </Card>
@@ -440,10 +607,17 @@ export default function ChatPanel({
             onKeyDown={handleKeyDown}
             placeholder="Type your message..."
             className="min-h-[60px] resize-none"
+            disabled={isStreaming}
           />
-          <Button onClick={handleSend} disabled={!input.trim() || isStreaming} size="icon" className="h-[60px] w-[60px]">
-            {isStreaming ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-          </Button>
+          {isStreaming ? (
+            <Button onClick={handleStop} size="icon" className="h-[60px] w-[60px]" variant="destructive">
+              <Square className="h-5 w-5" />
+            </Button>
+          ) : (
+            <Button onClick={handleSend} disabled={!input.trim()} size="icon" className="h-[60px] w-[60px]">
+              <Send className="h-5 w-5" />
+            </Button>
+          )}
         </div>
       </div>
     </div>
