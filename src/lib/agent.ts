@@ -78,7 +78,7 @@ export interface StreamChunk {
   timestamp: string;
 }
 
-// 流式执行 agent - 使用正确的 LangChain API
+// 流式执行 agent - 使用 values 模式获取完整步骤，配合消息级流式处理
 export async function* streamAgent(
   input: string,
   chatHistory: BaseMessage[] = []
@@ -95,7 +95,7 @@ export async function* streamAgent(
 
     console.log('[Agent] Calling agent.stream with messages:', messages.length);
 
-    // 使用 streamMode: "values" 来获取完整状态，更好地支持流式输出
+    // 使用 streamMode: "values" 来获取完整的 agent 步骤，包括工具执行
     const stream = await agent.stream(
       { messages },
       { streamMode: 'values' }
@@ -103,11 +103,12 @@ export async function* streamAgent(
 
     console.log('[Agent] Stream started, waiting for chunks...');
 
-    let previousMessageCount = 0;
+    // 跟踪已处理的消息和工具调用
+    let previousMessageCount = messages.length;
+    const processedToolCalls = new Set<string>();
+    let lastTextContent = '';
 
     for await (const chunk of stream) {
-      console.log('[Agent] Received chunk:', JSON.stringify(chunk, null, 2));
-
       // 类型守护：确保 chunk 是对象且包含 messages
       if (!chunk || typeof chunk !== 'object' || !('messages' in chunk)) {
         console.log('[Agent] Invalid chunk format, skipping');
@@ -116,56 +117,73 @@ export async function* streamAgent(
 
       const chunkData = chunk as { messages?: any[] };
       
-      // 使用 values 模式时，chunk 直接包含 messages 数组
       if (!chunkData.messages || !Array.isArray(chunkData.messages)) {
         console.log('[Agent] No messages in chunk, skipping');
         continue;
       }
 
-      const messages = chunkData.messages;
-      console.log(`[Agent] Processing ${messages.length} messages (previous: ${previousMessageCount})`);
+      const allMessages = chunkData.messages;
+      console.log(`[Agent] Processing ${allMessages.length} messages (previous: ${previousMessageCount})`);
       
       // 只处理新增的消息
-      if (messages.length > previousMessageCount) {
-        const newMessages = messages.slice(previousMessageCount);
+      if (allMessages.length > previousMessageCount) {
+        const newMessages = allMessages.slice(previousMessageCount);
         
         for (const message of newMessages) {
-          console.log('[Agent] Processing message:', JSON.stringify(message, null, 2));
-          
-          // 处理不同类型的消息
           const messageType = message._getType?.() || message.type || message.constructor?.name;
-          console.log('[Agent] Message type:', messageType);
+          console.log('[Agent] New message type:', messageType);
 
-          // AI消息处理
+          // 处理 AI 消息
           if (messageType === 'ai' || messageType === 'AIMessage') {
             const content = message.content || message.kwargs?.content;
             const toolCalls = message.tool_calls || message.kwargs?.tool_calls;
 
-            // 处理工具调用
+            // 先处理工具调用
             if (toolCalls && Array.isArray(toolCalls) && toolCalls.length > 0) {
               for (const toolCall of toolCalls) {
-                console.log('[Agent] Tool call detected:', toolCall);
-                yield {
-                  type: 'tool_call',
-                  content: `Calling ${toolCall.name}...`,
-                  toolName: toolCall.name,
-                  toolInput: toolCall.args,
-                  timestamp: new Date().toISOString(),
-                };
+                const toolId = toolCall.id;
+                if (!processedToolCalls.has(toolId)) {
+                  console.log('[Agent] Tool call detected:', toolCall);
+                  processedToolCalls.add(toolId);
+                  
+                  yield {
+                    type: 'tool_call',
+                    content: `Calling ${toolCall.name}...`,
+                    toolName: toolCall.name,
+                    toolInput: toolCall.args,
+                    timestamp: new Date().toISOString(),
+                  };
+                }
               }
             }
 
-            // 处理文本内容（只有在没有工具调用或文本不为空时）
+            // 处理文本内容（最终回复）
             if (content && typeof content === 'string' && content.trim() !== '') {
-              console.log('[Agent] Text content detected:', content);
-              yield {
-                type: 'text',
-                content: content,
-                timestamp: new Date().toISOString(),
-              };
+              // 如果是新的文本内容，进行流式输出
+              if (content !== lastTextContent) {
+                console.log('[Agent] AI response:', content);
+                
+                // 计算增量文本
+                const newText = content.substring(lastTextContent.length);
+                if (newText) {
+                  // 将新文本分成小块进行流式输出（模拟 token 级流式）
+                  const chunkSize = 5; // 每次输出5个字符
+                  for (let i = 0; i < newText.length; i += chunkSize) {
+                    const textChunk = newText.substring(i, i + chunkSize);
+                    yield {
+                      type: 'text',
+                      content: textChunk,
+                      timestamp: new Date().toISOString(),
+                    };
+                    // 添加小延迟以模拟真实的流式效果
+                    await new Promise(resolve => setTimeout(resolve, 20));
+                  }
+                }
+                lastTextContent = content;
+              }
             }
           }
-          // 工具消息处理
+          // 处理工具消息（工具执行结果）
           else if (messageType === 'tool' || messageType === 'ToolMessage') {
             const content = message.content || message.kwargs?.content;
             const toolName = message.name || message.kwargs?.name || 'unknown';
@@ -182,7 +200,7 @@ export async function* streamAgent(
         }
       }
 
-      previousMessageCount = messages.length;
+      previousMessageCount = allMessages.length;
     }
 
     console.log('[Agent] Stream completed successfully');
