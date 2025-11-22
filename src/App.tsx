@@ -9,6 +9,7 @@ import AuthModal from '@/components/AuthModal';
 import { User, Message } from '@/types';
 import { signIn, signUp, signOut, getCurrentUser } from '@/lib/supabase';
 import { useFileTree } from '@/hooks/useFileTree';
+import { useCodingPreview } from '@/hooks/useCodingPreview';
 import { toast } from 'sonner';
 
 const queryClient = new QueryClient();
@@ -30,6 +31,17 @@ const App = () => {
     projectPath,
     autoLoad: true,
   });
+
+  // Use coding preview hook to manage file previews
+  const {
+    currentPreview,
+    previewHistory,
+    startPreview,
+    setContent,
+    completePreview,
+    clearPreview,
+    clearHistory,
+  } = useCodingPreview();
 
   useEffect(() => {
     checkUser();
@@ -82,6 +94,22 @@ const App = () => {
     }
   }, [fileTreeError]);
 
+  // Handle file write preview callbacks
+  const handleFileWriteStart = (filePath: string, fileContent: string) => {
+    console.log('[App] Starting file write preview:', filePath);
+    startPreview(filePath, fileContent);
+  };
+
+  const handleFileWriteContent = (content: string) => {
+    console.log('[App] Updating file write content');
+    setContent(content);
+  };
+
+  const handleFileWriteComplete = () => {
+    console.log('[App] File write complete');
+    completePreview();
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -90,16 +118,26 @@ const App = () => {
           <Navigation user={user} onLoginClick={() => setAuthModalOpen(true)} onLogout={handleLogout} />
 
           <div className="flex-1 flex overflow-hidden">
+            {/* Chat Panel - Left Side */}
             <div className="w-1/3">
-              <ChatPanel messages={messages} setMessages={setMessages} />
+              <ChatPanel 
+                messages={messages} 
+                setMessages={setMessages}
+                onFileWriteStart={handleFileWriteStart}
+                onFileWriteContent={handleFileWriteContent}
+                onFileWriteComplete={handleFileWriteComplete}
+              />
             </div>
 
+            {/* Code Panel - Right Side (includes coding preview as a tab) */}
             <div className="w-2/3">
               <CodePanel 
                 fileTree={fileTree} 
                 projectPath={projectPath}
                 isLoading={isLoadingFileTree}
                 onRefresh={loadFileTree}
+                codingPreview={currentPreview}
+                onClearPreview={clearPreview}
               />
             </div>
           </div>

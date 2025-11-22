@@ -1,22 +1,35 @@
 import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ChevronRight, ChevronDown, File, Folder, RefreshCw, AlertCircle, Save, X, Edit } from 'lucide-react';
+import { ChevronRight, ChevronDown, File, Folder, RefreshCw, AlertCircle, Save, X, Edit, FileCode } from 'lucide-react';
 import { FileNode } from '@/types';
 import Editor from '@monaco-editor/react';
 import { getFileContent, saveFileContent } from '@/lib/fileSystemApi';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { FilePreview } from '@/hooks/useCodingPreview';
 
 interface CodePanelProps {
   fileTree: FileNode[];
   projectPath: string;
   isLoading?: boolean;
   onRefresh?: () => void;
+  // Coding preview props
+  codingPreview?: FilePreview | null;
+  onClearPreview?: () => void;
 }
 
-export default function CodePanel({ fileTree, projectPath, isLoading: isLoadingTree, onRefresh }: CodePanelProps) {
+export default function CodePanel({ 
+  fileTree, 
+  projectPath, 
+  isLoading: isLoadingTree, 
+  onRefresh,
+  codingPreview,
+  onClearPreview,
+}: CodePanelProps) {
   const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['src']));
   const [fileContent, setFileContent] = useState<string>('');
@@ -25,6 +38,7 @@ export default function CodePanel({ fileTree, projectPath, isLoading: isLoadingT
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>('preview');
 
   // Get language identifier for Monaco Editor
   const getMonacoLanguage = (fileLanguage?: string, fileName?: string): string => {
@@ -163,6 +177,19 @@ export default function CodePanel({ fileTree, projectPath, isLoading: isLoadingT
 
   const hasUnsavedChanges = fileContent !== originalContent;
 
+  // Auto-switch to coding tab when preview is active
+  useEffect(() => {
+    if (codingPreview) {
+      setActiveTab('coding');
+    }
+  }, [codingPreview]);
+
+  // Get file extension for syntax highlighting
+  const getFileExtension = (path: string) => {
+    const parts = path.split('.');
+    return parts.length > 1 ? parts[parts.length - 1] : '';
+  };
+
   const renderFileTree = (nodes: FileNode[], level = 0) => {
     return nodes.map((node) => (
       <div key={node.path} style={{ paddingLeft: `${level * 16}px` }}>
@@ -199,10 +226,18 @@ export default function CodePanel({ fileTree, projectPath, isLoading: isLoadingT
 
   return (
     <div className="h-full bg-background">
-      <Tabs defaultValue="preview" className="h-full flex flex-col">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
         <div className="flex justify-center border-b py-2">
           <TabsList>
             <TabsTrigger value="preview">Preview</TabsTrigger>
+            <TabsTrigger value="coding" className="relative">
+              Coding
+              {codingPreview && (
+                <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                  {codingPreview.isStreaming ? '●' : '✓'}
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="editor">Editor</TabsTrigger>
           </TabsList>
         </div>
@@ -215,6 +250,82 @@ export default function CodePanel({ fileTree, projectPath, isLoading: isLoadingT
               <p className="text-muted-foreground">Your application preview will appear here</p>
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="coding" className="flex-1 m-0">
+          {codingPreview ? (
+            <div className="h-full flex flex-col">
+              {/* Coding Preview Header */}
+              <div className="border-b p-4 flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 flex-1 min-w-0">
+                    <FileCode className="h-5 w-5 text-primary flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-lg font-semibold truncate">{codingPreview.path}</h2>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(codingPreview.timestamp).toLocaleTimeString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2 flex-shrink-0">
+                    {codingPreview.isStreaming && (
+                      <Badge variant="secondary" className="animate-pulse">
+                        <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                        Writing...
+                      </Badge>
+                    )}
+                    {!codingPreview.isStreaming && (
+                      <Badge variant="default">Completed</Badge>
+                    )}
+                    {onClearPreview && (
+                      <Button variant="ghost" size="icon" onClick={onClearPreview}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Coding Preview Content */}
+              <ScrollArea className="flex-1">
+                <div className="p-4">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm flex items-center justify-between">
+                        <span className="font-mono text-muted-foreground">
+                          {codingPreview.path.split('/').pop()}
+                        </span>
+                        <Badge variant="outline">
+                          {getFileExtension(codingPreview.path)}
+                        </Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <pre className="text-sm overflow-x-auto">
+                        <code className={`language-${getFileExtension(codingPreview.path)}`}>
+                          {codingPreview.content || '// Waiting for content...'}
+                        </code>
+                      </pre>
+                    </CardContent>
+                  </Card>
+
+                  {/* Content Stats */}
+                  <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{codingPreview.content.length} characters</span>
+                    <span>{codingPreview.content.split('\n').length} lines</span>
+                  </div>
+                </div>
+              </ScrollArea>
+            </div>
+          ) : (
+            <div className="h-full flex items-center justify-center text-muted-foreground">
+              <div className="text-center space-y-2">
+                <FileCode className="h-12 w-12 mx-auto opacity-50" />
+                <p>No active file preview</p>
+                <p className="text-sm">File previews will appear here when the agent writes code</p>
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="editor" className="flex-1 m-0">

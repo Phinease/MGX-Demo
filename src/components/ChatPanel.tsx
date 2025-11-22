@@ -11,9 +11,19 @@ import { toast } from 'sonner';
 interface ChatPanelProps {
   messages: Message[];
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+  // Coding preview callbacks
+  onFileWriteStart?: (filePath: string, fileContent: string) => void;
+  onFileWriteContent?: (content: string) => void;
+  onFileWriteComplete?: () => void;
 }
 
-export default function ChatPanel({ messages, setMessages }: ChatPanelProps) {
+export default function ChatPanel({
+  messages,
+  setMessages,
+  onFileWriteStart,
+  onFileWriteContent,
+  onFileWriteComplete,
+}: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -74,18 +84,20 @@ export default function ChatPanel({ messages, setMessages }: ChatPanelProps) {
           chunkCount++;
           console.log(`[ChatPanel] Chunk #${chunkCount}:`, chunk);
 
-          if (chunk.type === 'custom') {
-            // 处理自定义更新（来自工具的 config.writer）
-            console.log('[ChatPanel] Custom update:', chunk.content);
-            customUpdates.push(chunk.content);
+          // ============================================
+          // 处理文件写入开始事件
+          // ============================================
+          if (chunk.type === 'file_write_start') {
+            console.log('[ChatPanel] File write start:', chunk.filePath);
             
-            // 创建一个临时的日志条目来显示工具的中间状态
-            const customContent: MessageContent = {
-              type: 'custom',
-              content: customUpdates.join('\n'),
-            };
+            // 触发文件预览（不在对话框中显示详细内容）
+            if (onFileWriteStart && chunk.filePath && chunk.fileContent) {
+              onFileWriteStart(chunk.filePath, chunk.fileContent);
+            }
             
-            // 更新消息，显示自定义更新
+            // 在对话框中只显示简短提示
+            customUpdates.push(`📝 Writing file: ${chunk.filePath}`);
+            
             setMessages(prev => {
               const newMessages = [...prev];
               const msgIndex = newMessages.findIndex(m => m.id === agentMessageId);
@@ -94,12 +106,10 @@ export default function ChatPanel({ messages, setMessages }: ChatPanelProps) {
                   ...Array.from(toolCalls.values()),
                 ];
                 
-                // 添加自定义更新
                 if (customUpdates.length > 0) {
-                  contents.push(customContent);
+                  contents.push({ type: 'custom', content: customUpdates.join('\n') });
                 }
                 
-                // 如果已有文本内容，添加到最后
                 if (textChunks.length > 0) {
                   contents.push({ type: 'text', content: textChunks.join('') });
                 }
@@ -111,15 +121,25 @@ export default function ChatPanel({ messages, setMessages }: ChatPanelProps) {
               }
               return newMessages;
             });
-          } else if (chunk.type === 'text') {
-            // 收集文本块
-            textChunks.push(chunk.content);
-            const fullText = textChunks.join('');
+          }
+          // ============================================
+          // 处理文件写入内容流式更新
+          // ============================================
+          else if (chunk.type === 'file_write_content') {
+            console.log('[ChatPanel] File write content chunk');
             
-            console.log('[ChatPanel] Received text chunk:', chunk.content);
-            console.log('[ChatPanel] Full text so far:', fullText);
+            // 触发预览组件更新（不在对话框中显示）
+            if (onFileWriteContent && chunk.content) {
+              onFileWriteContent(chunk.content);
+            }
+          }
+          // ============================================
+          // 处理自定义更新（工具的 config.writer 输出）
+          // ============================================
+          else if (chunk.type === 'custom') {
+            console.log('[ChatPanel] Custom update:', chunk.content);
+            customUpdates.push(chunk.content);
             
-            // 更新消息，将所有工具调用和最终文本内容一起显示
             setMessages(prev => {
               const newMessages = [...prev];
               const msgIndex = newMessages.findIndex(m => m.id === agentMessageId);
@@ -128,12 +148,43 @@ export default function ChatPanel({ messages, setMessages }: ChatPanelProps) {
                   ...Array.from(toolCalls.values()),
                 ];
                 
-                // 添加自定义更新（如果有）
                 if (customUpdates.length > 0) {
                   contents.push({ type: 'custom', content: customUpdates.join('\n') });
                 }
                 
-                // 添加文本内容
+                if (textChunks.length > 0) {
+                  contents.push({ type: 'text', content: textChunks.join('') });
+                }
+                
+                newMessages[msgIndex] = {
+                  ...newMessages[msgIndex],
+                  contents,
+                };
+              }
+              return newMessages;
+            });
+          }
+          // ============================================
+          // 处理完整文本（向后兼容）
+          // ============================================
+          else if (chunk.type === 'text') {
+            textChunks.push(chunk.content);
+            const fullText = textChunks.join('');
+            
+            console.log('[ChatPanel] Received text chunk:', chunk.content);
+            
+            setMessages(prev => {
+              const newMessages = [...prev];
+              const msgIndex = newMessages.findIndex(m => m.id === agentMessageId);
+              if (msgIndex !== -1) {
+                const contents: MessageContent[] = [
+                  ...Array.from(toolCalls.values()),
+                ];
+                
+                if (customUpdates.length > 0) {
+                  contents.push({ type: 'custom', content: customUpdates.join('\n') });
+                }
+                
                 contents.push({ type: 'text', content: fullText });
                 
                 newMessages[msgIndex] = {
@@ -143,10 +194,13 @@ export default function ChatPanel({ messages, setMessages }: ChatPanelProps) {
               }
               return newMessages;
             });
-          } else if (chunk.type === 'tool_call') {
+          }
+          // ============================================
+          // 处理工具调用
+          // ============================================
+          else if (chunk.type === 'tool_call') {
             console.log('[ChatPanel] Tool call:', chunk.toolName, chunk.toolInput);
             
-            // 创建或更新工具调用记录
             const toolCallId = `tool-${chunk.timestamp}-${chunk.toolName}`;
             const toolCallContent: MessageContent = {
               type: 'tool_call',
@@ -162,7 +216,6 @@ export default function ChatPanel({ messages, setMessages }: ChatPanelProps) {
             
             toolCalls.set(chunk.toolName || 'unknown', toolCallContent);
             
-            // 立即更新UI显示工具调用
             setMessages(prev => {
               const newMessages = [...prev];
               const msgIndex = newMessages.findIndex(m => m.id === agentMessageId);
@@ -171,12 +224,10 @@ export default function ChatPanel({ messages, setMessages }: ChatPanelProps) {
                   ...Array.from(toolCalls.values()),
                 ];
                 
-                // 添加自定义更新（如果有）
                 if (customUpdates.length > 0) {
                   contents.push({ type: 'custom', content: customUpdates.join('\n') });
                 }
                 
-                // 如果已有文本内容，添加到最后
                 if (textChunks.length > 0) {
                   contents.push({ type: 'text', content: textChunks.join('') });
                 }
@@ -188,13 +239,18 @@ export default function ChatPanel({ messages, setMessages }: ChatPanelProps) {
               }
               return newMessages;
             });
-          } else if (chunk.type === 'tool_result') {
+          }
+          // ============================================
+          // 处理工具调用结果
+          // ============================================
+          else if (chunk.type === 'tool_result') {
             console.log('[ChatPanel] Tool result:', chunk.toolName, chunk.toolOutput);
             
-            // 更新工具调用结果
             const toolCall = toolCalls.get(chunk.toolName || 'unknown');
             if (toolCall && toolCall.toolCall) {
-              toolCall.toolCall.status = 'completed';
+              // 检查是否是错误结果
+              const isError = typeof chunk.toolOutput === 'string' && chunk.toolOutput.startsWith('Error:');
+              toolCall.toolCall.status = isError ? 'failed' : 'completed';
               toolCall.toolCall.output = chunk.toolOutput;
               
               setMessages(prev => {
@@ -205,12 +261,10 @@ export default function ChatPanel({ messages, setMessages }: ChatPanelProps) {
                     ...Array.from(toolCalls.values()),
                   ];
                   
-                  // 添加自定义更新（如果有）
                   if (customUpdates.length > 0) {
                     contents.push({ type: 'custom', content: customUpdates.join('\n') });
                   }
                   
-                  // 如果已有文本内容，添加到最后
                   if (textChunks.length > 0) {
                     contents.push({ type: 'text', content: textChunks.join('') });
                   }
@@ -223,9 +277,17 @@ export default function ChatPanel({ messages, setMessages }: ChatPanelProps) {
                 return newMessages;
               });
             }
-          } else if (chunk.type === 'step') {
+          }
+          // ============================================
+          // 处理步骤信息
+          // ============================================
+          else if (chunk.type === 'step') {
             console.log('[ChatPanel] Step:', chunk.stepName);
-          } else if (chunk.type === 'error') {
+          }
+          // ============================================
+          // 处理错误
+          // ============================================
+          else if (chunk.type === 'error') {
             console.error('[ChatPanel] Error chunk:', chunk.content);
             toast.error(chunk.content);
           }
@@ -233,6 +295,11 @@ export default function ChatPanel({ messages, setMessages }: ChatPanelProps) {
 
         console.log(`[ChatPanel] Stream completed. Total chunks: ${chunkCount}`);
         console.log(`[ChatPanel] Text chunks collected: ${textChunks.length}, Tool calls: ${toolCalls.size}`);
+        
+        // 通知文件写入完成
+        if (onFileWriteComplete) {
+          onFileWriteComplete();
+        }
         
         // 如果没有生成任何内容，显示提示消息
         if (textChunks.length === 0 && toolCalls.size === 0) {
