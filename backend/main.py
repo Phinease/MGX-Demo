@@ -1,8 +1,12 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pathlib import Path
 from typing import List, Optional
 import os
+import asyncio
+import subprocess
+import json
 from pydantic import BaseModel
 
 app = FastAPI(title="File System API")
@@ -243,6 +247,165 @@ def save_file_content(request: SaveFileRequest) -> dict:
             "message": "File saved successfully",
             "path": str(file_path)
         }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+class WriteFileRequest(BaseModel):
+    path: str
+    content: str
+    create_if_not_exists: bool = False
+
+
+@app.post("/api/files/write")
+def write_file_content(request: WriteFileRequest) -> dict:
+    """
+    Write file content (create new or overwrite existing)
+    
+    Args:
+        request: WriteFileRequest containing path, content, and creation flag
+    """
+    try:
+        file_path = Path(request.path)
+        
+        # If file doesn't exist and create_if_not_exists is False, raise error
+        if not file_path.exists() and not request.create_if_not_exists:
+            raise HTTPException(status_code=404, detail=f"File not found: {request.path}. Set create_if_not_exists=true to create it.")
+        
+        # Create parent directories if they don't exist
+        if request.create_if_not_exists:
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Write file content
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(request.content)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to write file: {str(e)}")
+        
+        action = "created" if not file_path.exists() else "updated"
+        
+        return {
+            "success": True,
+            "message": f"File {action} successfully",
+            "path": str(file_path.absolute()),
+            "size": len(request.content)
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+class ExecuteCommandRequest(BaseModel):
+    command: str
+    working_dir: Optional[str] = None
+    timeout: int = 300  # Default 5 minutes
+
+
+async def stream_command_output(command: str, working_dir: Optional[str] = None, timeout: int = 300):
+    """
+    Stream command output in real-time using Server-Sent Events (SSE) format
+    """
+    try:
+        # Split command into parts for subprocess
+        import shlex
+        cmd_parts = shlex.split(command)
+        
+        # Set working directory
+        cwd = working_dir if working_dir else os.getcwd()
+        
+        # Send initial message
+        yield f"data: {json.dumps({'type': 'start', 'command': command, 'cwd': cwd})}\n\n"
+        
+        # Create subprocess
+        process = await asyncio.create_subprocess_exec(
+            *cmd_parts,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=cwd
+        )
+        
+        # Function to read and stream output
+        async def read_stream(stream, stream_type):
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                try:
+                    decoded_line = line.decode('utf-8').rstrip()
+                    yield f"data: {json.dumps({'type': stream_type, 'data': decoded_line})}\n\n"
+                except UnicodeDecodeError:
+                    # Handle binary output
+                    yield f"data: {json.dumps({'type': stream_type, 'data': '[binary data]'})}\n\n"
+        
+        # Read stdout and stderr concurrently
+        async def read_all_streams():
+            tasks = []
+            if process.stdout:
+                tasks.append(read_stream(process.stdout, 'stdout'))
+            if process.stderr:
+                tasks.append(read_stream(process.stderr, 'stderr'))
+            
+            for task in tasks:
+                async for chunk in task:
+                    yield chunk
+        
+        # Stream output
+        async for chunk in read_all_streams():
+            yield chunk
+        
+        # Wait for process to complete with timeout
+        try:
+            await asyncio.wait_for(process.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            process.kill()
+            yield f"data: {json.dumps({'type': 'error', 'data': f'Command timed out after {timeout} seconds'})}\n\n"
+            return
+        
+        # Send exit code
+        yield f"data: {json.dumps({'type': 'exit', 'code': process.returncode})}\n\n"
+        
+    except FileNotFoundError:
+        yield f"data: {json.dumps({'type': 'error', 'data': f'Command not found: {command}'})}\n\n"
+    except Exception as e:
+        yield f"data: {json.dumps({'type': 'error', 'data': str(e)})}\n\n"
+    finally:
+        # Send completion marker
+        yield "data: [DONE]\n\n"
+
+
+@app.post("/api/command/execute")
+async def execute_command(request: ExecuteCommandRequest):
+    """
+    Execute a shell command and stream the output in real-time
+    
+    Args:
+        request: ExecuteCommandRequest containing command, working_dir, and timeout
+    """
+    try:
+        # Validate working directory if provided
+        if request.working_dir:
+            working_dir_path = Path(request.working_dir)
+            if not working_dir_path.exists():
+                raise HTTPException(status_code=404, detail=f"Working directory not found: {request.working_dir}")
+            if not working_dir_path.is_dir():
+                raise HTTPException(status_code=400, detail=f"Path is not a directory: {request.working_dir}")
+        
+        # Return streaming response
+        return StreamingResponse(
+            stream_command_output(request.command, request.working_dir, request.timeout),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
     
     except HTTPException:
         raise

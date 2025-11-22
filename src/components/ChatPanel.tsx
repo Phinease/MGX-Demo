@@ -67,13 +67,51 @@ export default function ChatPanel({ messages, setMessages }: ChatPanelProps) {
         // Stream agent response
         const textChunks: string[] = [];
         const toolCalls = new Map<string, MessageContent>();
+        const customUpdates: string[] = [];
         let chunkCount = 0;
 
         for await (const chunk of streamAgent(userInput, chatHistory)) {
           chunkCount++;
           console.log(`[ChatPanel] Chunk #${chunkCount}:`, chunk);
 
-          if (chunk.type === 'text') {
+          if (chunk.type === 'custom') {
+            // 处理自定义更新（来自工具的 config.writer）
+            console.log('[ChatPanel] Custom update:', chunk.content);
+            customUpdates.push(chunk.content);
+            
+            // 创建一个临时的日志条目来显示工具的中间状态
+            const customContent: MessageContent = {
+              type: 'custom',
+              content: customUpdates.join('\n'),
+            };
+            
+            // 更新消息，显示自定义更新
+            setMessages(prev => {
+              const newMessages = [...prev];
+              const msgIndex = newMessages.findIndex(m => m.id === agentMessageId);
+              if (msgIndex !== -1) {
+                const contents: MessageContent[] = [
+                  ...Array.from(toolCalls.values()),
+                ];
+                
+                // 添加自定义更新
+                if (customUpdates.length > 0) {
+                  contents.push(customContent);
+                }
+                
+                // 如果已有文本内容，添加到最后
+                if (textChunks.length > 0) {
+                  contents.push({ type: 'text', content: textChunks.join('') });
+                }
+                
+                newMessages[msgIndex] = {
+                  ...newMessages[msgIndex],
+                  contents,
+                };
+              }
+              return newMessages;
+            });
+          } else if (chunk.type === 'text') {
             // 收集文本块
             textChunks.push(chunk.content);
             const fullText = textChunks.join('');
@@ -88,8 +126,15 @@ export default function ChatPanel({ messages, setMessages }: ChatPanelProps) {
               if (msgIndex !== -1) {
                 const contents: MessageContent[] = [
                   ...Array.from(toolCalls.values()),
-                  { type: 'text', content: fullText },
                 ];
+                
+                // 添加自定义更新（如果有）
+                if (customUpdates.length > 0) {
+                  contents.push({ type: 'custom', content: customUpdates.join('\n') });
+                }
+                
+                // 添加文本内容
+                contents.push({ type: 'text', content: fullText });
                 
                 newMessages[msgIndex] = {
                   ...newMessages[msgIndex],
@@ -126,6 +171,11 @@ export default function ChatPanel({ messages, setMessages }: ChatPanelProps) {
                   ...Array.from(toolCalls.values()),
                 ];
                 
+                // 添加自定义更新（如果有）
+                if (customUpdates.length > 0) {
+                  contents.push({ type: 'custom', content: customUpdates.join('\n') });
+                }
+                
                 // 如果已有文本内容，添加到最后
                 if (textChunks.length > 0) {
                   contents.push({ type: 'text', content: textChunks.join('') });
@@ -154,6 +204,11 @@ export default function ChatPanel({ messages, setMessages }: ChatPanelProps) {
                   const contents: MessageContent[] = [
                     ...Array.from(toolCalls.values()),
                   ];
+                  
+                  // 添加自定义更新（如果有）
+                  if (customUpdates.length > 0) {
+                    contents.push({ type: 'custom', content: customUpdates.join('\n') });
+                  }
                   
                   // 如果已有文本内容，添加到最后
                   if (textChunks.length > 0) {
@@ -281,6 +336,16 @@ export default function ChatPanel({ messages, setMessages }: ChatPanelProps) {
                       <div className="text-sm italic text-muted-foreground">{content.content}</div>
                       {renderToolCall(content)}
                     </>
+                  )}
+                  {content.type === 'custom' && (
+                    <Card className="p-3 mt-2 bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+                      <div className="text-xs font-semibold mb-1 text-blue-700 dark:text-blue-300">
+                        🔄 Tool Progress
+                      </div>
+                      <div className="text-xs text-blue-600 dark:text-blue-400 whitespace-pre-wrap font-mono">
+                        {content.content}
+                      </div>
+                    </Card>
                   )}
                 </div>
               ))}

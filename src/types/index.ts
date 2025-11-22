@@ -15,7 +15,7 @@ export interface ToolCall {
 }
 
 export interface MessageContent {
-  type: 'text' | 'tool_call';
+  type: 'text' | 'tool_call' | 'custom';
   content: string;
   toolCall?: ToolCall;
 }
