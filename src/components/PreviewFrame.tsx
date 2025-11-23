@@ -1,20 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, ExternalLink, Globe, Play, Square, Settings } from 'lucide-react';
+import { RefreshCw, ExternalLink, Globe, Play } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 
 interface PreviewFrameProps {
   url?: string;
@@ -24,38 +13,29 @@ interface PreviewFrameProps {
   isRunning?: boolean;
 }
 
-// Storage key for cloud IP setting
-const CLOUD_IP_STORAGE_KEY = 'mgx-demo-cloud-ip';
-
 /**
- * Get cloud IP from localStorage
+ * Automatically detect current hostname and replace localhost
+ * If accessing from cloud server, use cloud IP; otherwise use localhost
  */
-const getCloudIP = (): string => {
-  return localStorage.getItem(CLOUD_IP_STORAGE_KEY) || '';
-};
-
-/**
- * Set cloud IP to localStorage
- */
-const setCloudIP = (ip: string) => {
-  if (ip) {
-    localStorage.setItem(CLOUD_IP_STORAGE_KEY, ip);
-  } else {
-    localStorage.removeItem(CLOUD_IP_STORAGE_KEY);
+const replaceLocalhost = (url: string): string => {
+  // Get current hostname from browser
+  const currentHostname = window.location.hostname;
+  
+  // If already accessing from a non-localhost address, replace localhost with it
+  if (currentHostname !== 'localhost' && currentHostname !== '127.0.0.1') {
+    return url
+      .replace(/localhost/g, currentHostname)
+      .replace(/127\.0\.0\.1/g, currentHostname);
   }
-};
-
-/**
- * Replace localhost with cloud IP if configured
- */
-const replaceLocalhost = (url: string, cloudIP: string): string => {
-  if (!cloudIP) return url;
-  return url.replace(/localhost/g, cloudIP).replace(/127\.0\.0\.1/g, cloudIP);
+  
+  // Otherwise, keep as is (local development)
+  return url;
 };
 
 /**
  * Preview frame component to display running project in iframe
  * Shows a browser-like address bar and iframe preview
+ * Automatically detects cloud environment and replaces localhost with current hostname
  */
 export default function PreviewFrame({
   url,
@@ -64,12 +44,8 @@ export default function PreviewFrame({
   port,
   isRunning = false,
 }: PreviewFrameProps) {
-  const [cloudIP, setCloudIPState] = useState(getCloudIP());
-  const [tempCloudIP, setTempCloudIP] = useState(cloudIP);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  
-  const defaultUrl = replaceLocalhost('http://localhost:5173', cloudIP);
-  const [currentUrl, setCurrentUrl] = useState(url ? replaceLocalhost(url, cloudIP) : defaultUrl);
+  const defaultUrl = replaceLocalhost('http://localhost:5173');
+  const [currentUrl, setCurrentUrl] = useState(url ? replaceLocalhost(url) : defaultUrl);
   const [inputUrl, setInputUrl] = useState(currentUrl);
   const [isLoading, setIsLoading] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
@@ -77,17 +53,11 @@ export default function PreviewFrame({
   // Update current URL when prop changes
   useEffect(() => {
     if (url) {
-      const newUrl = replaceLocalhost(url, cloudIP);
+      const newUrl = replaceLocalhost(url);
       setCurrentUrl(newUrl);
       setInputUrl(newUrl);
     }
-  }, [url, cloudIP]);
-
-  // Update URLs when cloud IP changes
-  useEffect(() => {
-    setCurrentUrl(prev => replaceLocalhost(prev, cloudIP));
-    setInputUrl(prev => replaceLocalhost(prev, cloudIP));
-  }, [cloudIP]);
+  }, [url]);
 
   const handleNavigate = () => {
     if (inputUrl.trim()) {
@@ -122,18 +92,6 @@ export default function PreviewFrame({
   const handleIframeError = () => {
     setIsLoading(false);
     toast.error('Failed to load preview');
-  };
-
-  const handleSaveCloudIP = () => {
-    setCloudIP(tempCloudIP);
-    setCloudIPState(tempCloudIP);
-    setIsSettingsOpen(false);
-    toast.success(tempCloudIP ? 'Cloud IP saved: ' + tempCloudIP : 'Cloud IP cleared');
-  };
-
-  const handleOpenSettings = () => {
-    setTempCloudIP(cloudIP);
-    setIsSettingsOpen(true);
   };
 
   return (
@@ -196,59 +154,6 @@ export default function PreviewFrame({
           >
             <ExternalLink className="h-4 w-4" />
           </Button>
-          
-          {/* Cloud IP Settings */}
-          <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-            <DialogTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleOpenSettings}
-                title="Cloud IP Settings"
-              >
-                <Settings className="h-4 w-4" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Cloud IP Settings</DialogTitle>
-                <DialogDescription>
-                  Replace localhost with your cloud server IP address. This setting applies globally across the entire application.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="cloud-ip">Cloud Server IP or Domain</Label>
-                  <Input
-                    id="cloud-ip"
-                    placeholder="e.g., 192.168.1.100 or example.com"
-                    value={tempCloudIP}
-                    onChange={(e) => setTempCloudIP(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Leave empty to use localhost. All localhost URLs will be replaced with this IP/domain.
-                  </p>
-                </div>
-                {cloudIP && (
-                  <div className="text-sm space-y-1">
-                    <p className="font-medium">Current Setting:</p>
-                    <code className="px-2 py-1 bg-muted rounded text-xs">
-                      localhost → {cloudIP}
-                    </code>
-                  </div>
-                )}
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSaveCloudIP}>
-                  Save
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-          
           <Button
             onClick={handleNavigate}
             size="sm"

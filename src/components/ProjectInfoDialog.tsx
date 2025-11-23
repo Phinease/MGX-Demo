@@ -94,11 +94,6 @@ export default function ProjectInfoDialog({ open, onOpenChange }: ProjectInfoDia
     },
     {
       type: 'known',
-      title: '依赖安装性能问题',
-      description: 'pnpm 在云端环境由于代理问题可能存在延迟缓慢，影响项目初始化速度',
-    },
-    {
-      type: 'known',
       title: '智能体提示词优化不足',
       description: '提示词与核心业务流程需要进一步优化，可能存在遵从较差或执行不精确的问题',
     },
@@ -106,11 +101,6 @@ export default function ProjectInfoDialog({ open, onOpenChange }: ProjectInfoDia
       type: 'known',
       title: '对话历史保存机制缺陷',
       description: '未成功运行完整的对话轮次时，没有存入智能体对话历史（上下文），导致续聊上下文丢失',
-    },
-    {
-      type: 'known',
-      title: '云端部署安全与体验问题',
-      description: '云端部署 localhost 无法跳转，需要使用云公共 IP，存在安全隐患与使用体验问题',
     },
   ];
 
@@ -251,9 +241,9 @@ export default function ProjectInfoDialog({ open, onOpenChange }: ProjectInfoDia
                   </div>
                 </div>
                 <div className="p-3 border rounded-lg bg-orange-50/50 dark:bg-orange-950/20">
-                  <div className="font-medium text-sm mb-1">云端适配</div>
+                  <div className="font-medium text-sm mb-1">智能环境适配</div>
                   <div className="text-xs text-muted-foreground">
-                    支持云端 IP 配置，解决容器化部署预览问题
+                    自动检测云端/本地环境，智能替换 API 地址
                   </div>
                 </div>
               </div>
