@@ -19,6 +19,8 @@ MGX-Demo 是一个创新的 AI 驱动的开发平台，通过集成大语言模�
 
 ## 能力演示
 
+https://github.com/user-attachments/assets/0f8ad2c6-21d8-443f-96ef-51abcd640787
+
 <img width="5120" height="2578" alt="2" src="https://github.com/user-attachments/assets/ab27c402-b138-416a-b9f9-19c5f14f766e" />
 <img width="5120" height="2578" alt="3" src="https://github.com/user-attachments/assets/d09fbae1-b6cb-4de1-a1dc-6b254296a7fa" />
 <img width="5120" height="2578" alt="4" src="https://github.com/user-attachments/assets/b76298a2-c251-42de-b5d8-79d02e9962ab" />
