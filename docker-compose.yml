@@ -1,11 +1,44 @@
 services:
   mgx-demo:
+    image: mgx-demo:latest
     build:
       context: .
       dockerfile: Dockerfile
     container_name: mgx-demo-app
-    # 使用 host 网络模式（演示环境）
-    network_mode: host
+    # 使用桥接网络模式 + 端口映射（兼容 macOS/Windows/Linux）
+    ports:
+      - "8000:8000"      # 后端 API
+      - "5173:5173"      # 主前端
+      - "6300:6300"      # 动态生成的项目 (起始端口)
+      - "6301:6301"
+      - "6302:6302"
+      - "6303:6303"
+      - "6304:6304"
+      - "6305:6305"
+      - "6306:6306"
+      - "6307:6307"
+      - "6308:6308"
+      - "6309:6309"
+      - "6310:6310"
+      - "6311:6311"
+      - "6312:6312"
+      - "6313:6313"
+      - "6314:6314"
+      - "6315:6315"
+      - "6316:6316"
+      - "6317:6317"
+      - "6318:6318"
+      - "6319:6319"
+      - "6320:6320"
+      - "6321:6321"
+      - "6322:6322"
+      - "6323:6323"
+      - "6324:6324"
+      - "6325:6325"
+      - "6326:6326"
+      - "6327:6327"
+      - "6328:6328"
+      - "6329:6329"
     volumes:
       # 挂载 generated-projects 目录，保持数据持久化
       - ./generated-projects:/app/generated-projects
@@ -13,4 +46,10 @@ services:
       - NODE_ENV=development
       - PYTHONUNBUFFERED=1
     restart: unless-stopped
+    networks:
+      - mgx-network
+
+networks:
+  mgx-network:
+    driver: bridge
 

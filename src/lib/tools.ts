@@ -1,26 +1,66 @@
 import { tool } from 'langchain';
 import { z } from 'zod';
-import * as path from 'path';
 
 // 后端 API 基础 URL
 const API_BASE_URL = 'http://localhost:8000';
 
-// 模板项目路径配置
-// 注意：这些路径需要根据实际环境进行配置
-export const TEMPLATE_CONFIG = {
-  // 模板项目路径（开发环境）
-  templatePath: '/Users/shuangruichen/Code/MGX-Demo/shadcn-ui',
-  // 生成的项目存放路径（开发环境）
-  projectsBasePath: '/Users/shuangruichen/Code/MGX-Demo/generated-projects',
-};
+// 路径配置缓存
+let pathConfigCache: {
+  templatePath: string;
+  projectsBasePath: string;
+  projectRoot: string;
+} | null = null;
 
-// 设置模板路径的函数（用于生产环境配置）
-export function setTemplatePath(templatePath: string, projectsBasePath?: string) {
-  TEMPLATE_CONFIG.templatePath = templatePath;
-  if (projectsBasePath) {
-    TEMPLATE_CONFIG.projectsBasePath = projectsBasePath;
+/**
+ * 从后端获取路径配置
+ * 该函数会缓存结果，避免重复请求
+ * 
+ * @returns Promise<PathConfig> 包含模板路径、项目基础路径等配置
+ */
+export async function getPathConfig(): Promise<{
+  templatePath: string;
+  projectsBasePath: string;
+  projectRoot: string;
+}> {
+  if (pathConfigCache) {
+    return pathConfigCache;
+}
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/config/paths`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch path config: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    pathConfigCache = {
+      templatePath: data.template_path,
+      projectsBasePath: data.projects_base_path,
+      projectRoot: data.project_root,
+    };
+    
+    console.log('📁 Path configuration loaded:', pathConfigCache);
+    
+    return pathConfigCache;
+  } catch (error) {
+    console.error('❌ Failed to load path configuration:', error);
+    
+    // 如果无法从后端获取配置，使用默认的容器路径
+    // 在容器内运行时，这些路径应该是正确的
+    pathConfigCache = {
+      templatePath: '/app/shadcn-ui',
+      projectsBasePath: '/app/generated-projects',
+      projectRoot: '/app',
+    };
+    
+    console.log('⚠️  Using default container paths:', pathConfigCache);
+    
+    return pathConfigCache;
   }
 }
+
 
 /**
  * 工具 1: 初始化项目
@@ -31,9 +71,14 @@ export const initializeProjectTool = tool(
     const { projectName } = input;
     
     try {
+      // 从后端获取路径配置
+      const pathConfig = await getPathConfig();
+      
       // 生成随机后缀（6位字母数字）
       const randomSuffix = Math.random().toString(36).substring(2, 8);
       const newProjectName = `${projectName}-${randomSuffix}`;
+      
+      console.log(`🚀 Initializing project "${newProjectName}" using template: ${pathConfig.templatePath}`);
       
       // 调用后端 API 复制项目
       const response = await fetch(`${API_BASE_URL}/api/project/initialize`, {
@@ -42,9 +87,9 @@ export const initializeProjectTool = tool(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          template_path: TEMPLATE_CONFIG.templatePath,
+          template_path: pathConfig.templatePath,
           project_name: newProjectName,
-          target_base_path: TEMPLATE_CONFIG.projectsBasePath,
+          target_base_path: pathConfig.projectsBasePath,
         }),
       });
       
@@ -55,14 +100,17 @@ export const initializeProjectTool = tool(
       
       const result = await response.json();
       
+      console.log(`✅ Project initialized: ${result.project_path}`);
+      
       return JSON.stringify({
         success: true,
         projectName: newProjectName,
         projectPath: result.project_path,
         message: `Project initialized successfully at: ${result.project_path}`,
-        templateUsed: TEMPLATE_CONFIG.templatePath,
+        templateUsed: pathConfig.templatePath,
       }, null, 2);
     } catch (error) {
+      console.error('❌ Failed to initialize project:', error);
       return `Failed to initialize project: ${error instanceof Error ? error.message : String(error)}`;
     }
   },
@@ -517,7 +565,7 @@ export const stopProjectTool = tool(
  */
 export const findAvailablePortTool = tool(
   async (input) => {
-    const { startPort = 5173, count = 1 } = input;
+    const { startPort = 6300, count = 1 } = input;
     
     try {
       const response = await fetch(
@@ -542,9 +590,9 @@ export const findAvailablePortTool = tool(
   },
   {
     name: 'find_available_port',
-    description: 'Find available ports for running development servers. This helps avoid port conflicts. Typically you should start from port 5173 (default Vite port).',
+    description: 'Find available ports for running development servers. This helps avoid port conflicts. Port range: 6300-6329 (30 ports available).',
     schema: z.object({
-      startPort: z.number().optional().describe('Port number to start searching from (default: 5173)'),
+      startPort: z.number().optional().describe('Port number to start searching from (default: 6300)'),
       count: z.number().optional().describe('Number of available ports to find (default: 1)'),
     }),
   }

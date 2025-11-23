@@ -33,7 +33,7 @@ const App = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [projectPath, setProjectPath] = useState<string>('/Users/shuangruichen/Code/MGX-Demo');
+  const [projectPath, setProjectPath] = useState<string>(''); // 空字符串，等待项目初始化
   const [conversationListCollapsed, setConversationListCollapsed] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [conversationState, setConversationState] = useState<ConversationState | null>(null);
@@ -174,6 +174,9 @@ const App = () => {
             setTimeout(() => {
               loadFileTree();
             }, 100);
+          } else {
+            // No project path, clear it to trigger refresh
+            setProjectPath('');
           }
           
           // Restore preview state if running
@@ -196,7 +199,8 @@ const App = () => {
             clearPreview();
           }
         } else {
-          // No state found, set defaults
+          // No state found, set defaults and clear project path
+          setProjectPath('');
           setConversationState(null);
           setRunningProject(null);
           clearPreview();
@@ -208,7 +212,9 @@ const App = () => {
         setIsLoadingMessages(false);
       }
     } else {
+      // No conversation selected, clear everything
       setMessages([]);
+      setProjectPath('');
       setConversationState(null);
       setRunningProject(null);
       clearPreview();
@@ -225,7 +231,15 @@ const App = () => {
     
     const newConversationId = await createConversation();
     if (newConversationId) {
+      // Reset all conversation-related states (same as selecting no conversation)
       setMessages([]);
+      setProjectPath(''); // Clear project path to trigger WorkspacePanel refresh
+      setConversationState(null);
+      setRunningProject(null);
+      clearPreview();
+      clearHistory();
+      
+      toast.success('New conversation created');
     }
   };
   

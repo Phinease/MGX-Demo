@@ -17,6 +17,18 @@ app = FastAPI(title="File System API")
 # 进程管理：存储运行中的开发服务器进程
 running_processes: Dict[str, dict] = {}
 
+# ================== 路径配置 ==================
+# 自动检测项目根目录（后端文件的父目录）
+BACKEND_DIR = Path(__file__).parent
+PROJECT_ROOT = BACKEND_DIR.parent
+
+# 配置路径
+PATH_CONFIG = {
+    "template_path": str((PROJECT_ROOT / "shadcn-ui").absolute()),
+    "projects_base_path": str((PROJECT_ROOT / "generated-projects").absolute()),
+    "project_root": str(PROJECT_ROOT.absolute()),
+}
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
@@ -149,6 +161,22 @@ def read_directory_tree(directory_path: str, include_content: bool = False, max_
 @app.get("/")
 def read_root():
     return {"message": "File System API is running"}
+
+
+@app.get("/api/config/paths")
+def get_path_config() -> dict:
+    """
+    获取路径配置信息
+    
+    Returns:
+        包含模板路径、项目基础路径等配置信息
+    """
+    return {
+        "template_path": PATH_CONFIG["template_path"],
+        "projects_base_path": PATH_CONFIG["projects_base_path"],
+        "project_root": PATH_CONFIG["project_root"],
+        "backend_dir": str(BACKEND_DIR.absolute()),
+    }
 
 
 @app.get("/api/files/tree")
@@ -598,12 +626,13 @@ async def build_project(request: BuildProjectRequest):
         raise HTTPException(status_code=500, detail=f"Failed to build project: {str(e)}")
 
 
-def find_available_port(start_port: int = 5173, count: int = 1) -> List[int]:
+def find_available_port(start_port: int = 6300, count: int = 1) -> List[int]:
     """
     Find available ports starting from start_port
+    Designed to work in Linux/Docker environments
     
     Args:
-        start_port: Port to start searching from
+        start_port: Port to start searching from (default: 6300)
         count: Number of ports to find
         
     Returns:
@@ -611,11 +640,14 @@ def find_available_port(start_port: int = 5173, count: int = 1) -> List[int]:
     """
     available_ports = []
     port = start_port
+    max_port = start_port + 30  # Limit search to 30 ports (6300-6329)
     
-    while len(available_ports) < count and port < 65535:
+    while len(available_ports) < count and port < max_port:
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(('', port))
+                # Set socket options for better compatibility in Linux/Docker
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind(('0.0.0.0', port))
                 available_ports.append(port)
         except OSError:
             pass
@@ -625,7 +657,7 @@ def find_available_port(start_port: int = 5173, count: int = 1) -> List[int]:
 
 
 @app.get("/api/project/find-port")
-def find_port(start_port: int = 5173, count: int = 1) -> dict:
+def find_port(start_port: int = 6300, count: int = 1) -> dict:
     """
     Find available ports
     
@@ -698,16 +730,18 @@ async def run_project(request: RunProjectRequest):
         
         # Find available port if not specified
         if request.port is None:
-            ports = find_available_port(5173, 1)
+            ports = find_available_port(6300, 1)
             if not ports:
-                raise HTTPException(status_code=400, detail="No available ports found")
+                raise HTTPException(status_code=400, detail="No available ports found in range 6300-6329")
             port = ports[0]
         else:
             port = request.port
             # Check if port is available
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.bind(('', port))
+                    # Set socket options for better compatibility in Linux/Docker
+                    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                    s.bind(('0.0.0.0', port))
             except OSError:
                 raise HTTPException(status_code=400, detail=f"Port {port} is already in use")
         

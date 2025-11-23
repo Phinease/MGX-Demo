@@ -57,6 +57,11 @@ export default function WorkspacePanel({
     }
   }, [codingPreview]);
 
+  // Reset to preview tab when project path changes (switching conversations)
+  useEffect(() => {
+    setActiveTab('preview');
+  }, [projectPath]);
+
   return (
     <div className="h-full bg-background">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">

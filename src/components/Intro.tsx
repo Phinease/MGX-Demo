@@ -1,45 +1,85 @@
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { MessageSquare, Code2, Zap, Shield } from 'lucide-react';
+import { MessageSquare, Code2, Zap, Shield, Info } from 'lucide-react';
+import ProjectInfoDialog from './ProjectInfoDialog';
 
 interface IntroProps {
   onLoginClick: () => void;
 }
 
 export default function Intro({ onLoginClick }: IntroProps) {
+  const [showProjectInfo, setShowProjectInfo] = useState(false);
+
+  // 自动显示项目信息弹窗（仅首次）
+  useEffect(() => {
+    const hasShown = localStorage.getItem('project-info-shown');
+    if (!hasShown) {
+      // 延迟 500ms 显示，让页面先加载
+      const timer = setTimeout(() => {
+        setShowProjectInfo(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  // 处理弹窗关闭，标记为已显示
+  const handleDialogChange = (open: boolean) => {
+    setShowProjectInfo(open);
+    if (!open) {
+      // 用户关闭弹窗时，标记为已显示
+      localStorage.setItem('project-info-shown', 'true');
+    }
+  };
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-6">
-      <div className="max-w-4xl w-full space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-        {/* Hero Section */}
-        <div className="text-center space-y-6">
-          <div className="inline-block">
-            <div className="flex items-center justify-center space-x-3 mb-4">
-              <Code2 className="h-12 w-12 text-primary" />
-              <h1 className="text-6xl font-bold bg-gradient-to-r from-primary via-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                MGX
-              </h1>
+    <>
+      {/* 项目信息弹窗 */}
+      <ProjectInfoDialog
+        open={showProjectInfo}
+        onOpenChange={handleDialogChange}
+      />
+
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-6">
+        <div className="max-w-4xl w-full space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
+          {/* Hero Section */}
+          <div className="text-center space-y-6">
+            <div className="inline-block">
+              <div className="flex items-center justify-center space-x-3 mb-4">
+                <Code2 className="h-12 w-12 text-primary" />
+                <h1 className="text-6xl font-bold bg-gradient-to-r from-primary via-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                  MGX
+                </h1>
+              </div>
+            </div>
+            
+            <p className="text-2xl text-muted-foreground font-light">
+              AI-Powered Full-Stack Development Platform
+            </p>
+            
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Chat with AI to build, preview, and deploy your projects in real-time.
+              Let's build something amazing together.
+            </p>
+            
+            <div className="flex items-center justify-center gap-3 pt-6">
+              <Button 
+                onClick={onLoginClick}
+                size="lg"
+                className="text-lg px-8 py-6 shadow-lg hover:shadow-xl transition-all"
+              >
+                Get Started - Sign In
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => setShowProjectInfo(true)}
+                className="text-lg px-6 py-6"
+              >
+                <Info className="h-5 w-5 mr-2" />
+                Project Info
+              </Button>
             </div>
           </div>
-          
-          <p className="text-2xl text-muted-foreground font-light">
-            AI-Powered Full-Stack Development Platform
-          </p>
-          
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Chat with AI to build, preview, and deploy your projects in real-time.
-            Let's build something amazing together.
-          </p>
-          
-          <div className="pt-6">
-            <Button 
-              onClick={onLoginClick}
-              size="lg"
-              className="text-lg px-8 py-6 shadow-lg hover:shadow-xl transition-all"
-            >
-              Get Started - Sign In
-            </Button>
-          </div>
-        </div>
 
         {/* Features Grid */}
         <div className="grid md:grid-cols-3 gap-6 pt-8">
@@ -80,22 +120,23 @@ export default function Intro({ onLoginClick }: IntroProps) {
           </Card>
         </div>
 
-        {/* CTA */}
-        <div className="text-center pt-8 space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Sign in to start creating your first project
-          </p>
-          <div className="flex items-center justify-center space-x-2 text-xs text-muted-foreground">
-            <span>✨</span>
-            <span>Powered by AI</span>
-            <span>•</span>
-            <span>Built with React</span>
-            <span>•</span>
-            <span>Secured by Supabase</span>
+          {/* CTA */}
+          <div className="text-center pt-8 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Sign in to start creating your first project
+            </p>
+            <div className="flex items-center justify-center space-x-2 text-xs text-muted-foreground">
+              <span>✨</span>
+              <span>Powered by AI</span>
+              <span>•</span>
+              <span>Built with React</span>
+              <span>•</span>
+              <span>Secured by Supabase</span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

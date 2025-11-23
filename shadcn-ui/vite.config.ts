@@ -12,6 +12,7 @@ export default defineConfig(({ mode }) => ({
     react(),
   ],
   server: {
+    host: '0.0.0.0',
     watch: { usePolling: true, interval: 800 /* 300~1500 */ },
   },
   resolve: {

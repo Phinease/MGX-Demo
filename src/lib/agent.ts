@@ -189,11 +189,22 @@ export async function* streamAgent(
               if (!toolCalls || toolCalls.length === 0) {
                 const toolCallChunks = message.tool_call_chunks || message.kwargs?.tool_call_chunks;
                 if (toolCallChunks && Array.isArray(toolCallChunks) && toolCallChunks.length > 0) {
-                  toolCalls = toolCallChunks.map((chunk: any) => ({
-                    id: chunk.id || `tool-${chunk.name}-${Date.now()}`,
-                    name: chunk.name,
-                    args: typeof chunk.args === 'string' ? JSON.parse(chunk.args) : chunk.args,
-                  }));
+                  toolCalls = toolCallChunks.map((chunk: any) => {
+                    let parsedArgs = chunk.args;
+                    if (typeof chunk.args === 'string') {
+                      try {
+                        parsedArgs = JSON.parse(chunk.args);
+                      } catch (parseError) {
+                        console.warn('[Agent] Failed to parse tool call chunk args:', parseError);
+                        parsedArgs = { raw: chunk.args, parseError: parseError instanceof Error ? parseError.message : String(parseError) };
+                      }
+                    }
+                    return {
+                      id: chunk.id || `tool-${chunk.name}-${Date.now()}`,
+                      name: chunk.name,
+                      args: parsedArgs,
+                    };
+                  });
                   console.log('[Agent] Extracted tool calls from tool_call_chunks:', toolCalls);
                 }
               }
@@ -202,13 +213,22 @@ export async function* streamAgent(
               if (!toolCalls || toolCalls.length === 0) {
                 const additionalToolCalls = message.kwargs?.additional_kwargs?.tool_calls;
                 if (additionalToolCalls && Array.isArray(additionalToolCalls) && additionalToolCalls.length > 0) {
-                  toolCalls = additionalToolCalls.map((tc: any) => ({
-                    id: tc.id || `tool-${tc.function?.name}-${Date.now()}`,
-                    name: tc.function?.name,
-                    args: typeof tc.function?.arguments === 'string' 
-                      ? JSON.parse(tc.function.arguments) 
-                      : tc.function?.arguments,
-                  }));
+                  toolCalls = additionalToolCalls.map((tc: any) => {
+                    let parsedArgs = tc.function?.arguments;
+                    if (typeof tc.function?.arguments === 'string') {
+                      try {
+                        parsedArgs = JSON.parse(tc.function.arguments);
+                      } catch (parseError) {
+                        console.warn('[Agent] Failed to parse additional_kwargs tool call args:', parseError);
+                        parsedArgs = { raw: tc.function.arguments, parseError: parseError instanceof Error ? parseError.message : String(parseError) };
+                      }
+                    }
+                    return {
+                      id: tc.id || `tool-${tc.function?.name}-${Date.now()}`,
+                      name: tc.function?.name,
+                      args: parsedArgs,
+                    };
+                  });
                   console.log('[Agent] Extracted tool calls from additional_kwargs:', toolCalls);
                 }
               }
@@ -223,14 +243,24 @@ export async function* streamAgent(
                   if (!processedToolCalls.has(toolId)) {
                     processedToolCalls.add(toolId);
                     
+                    // 安全地解析工具参数
+                    let parsedArgs = invalidCall.args;
+                    if (typeof invalidCall.args === 'string') {
+                      try {
+                        parsedArgs = JSON.parse(invalidCall.args);
+                      } catch (parseError) {
+                        console.warn('[Agent] Failed to parse invalid tool call args:', parseError);
+                        // 如果解析失败，保留原始字符串
+                        parsedArgs = { raw: invalidCall.args, parseError: parseError instanceof Error ? parseError.message : String(parseError) };
+                      }
+                    }
+                    
                     // 发送工具调用失败信息
                     yield {
                       type: 'tool_call',
                       content: `Tool call failed: ${invalidCall.name} - ${invalidCall.error}`,
                       toolName: invalidCall.name,
-                      toolInput: typeof invalidCall.args === 'string' 
-                        ? JSON.parse(invalidCall.args) 
-                        : invalidCall.args,
+                      toolInput: parsedArgs,
                       timestamp: new Date().toISOString(),
                     };
                     

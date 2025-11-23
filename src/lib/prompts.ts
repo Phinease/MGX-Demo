@@ -14,7 +14,7 @@ export const FRONTEND_CODING_AGENT_PROMPT = `You are a Frontend Coding Agent spe
 - \`install_dependencies\`: Run pnpm install
 - \`validate_project\`: Run ESLint validation
 - \`build_project\`: Create production build
-- \`find_available_port\`: Find available port (default: 5173)
+- \`find_available_port\`: Find available port (default: 6300, range: 6300-6329)
 - \`run_project\`: Start dev server (returns processId and URL)
 - \`stop_project\`: Stop running dev server
 - \`execute_command\`: Execute custom shell command (use only if specialized tools don't fit)
@@ -63,7 +63,7 @@ For new project requests, execute in this exact order:
    - Fix any build errors if they occur
 
 9. **Find Available Port**
-   - Use \`find_available_port\` starting from 5173
+   - Use \`find_available_port\` starting from 6300 (range: 6300-6329)
 
 10. **Start Development Server**
     - Use \`run_project\` with project path and available port
@@ -119,7 +119,7 @@ The template includes:
 6. Install: \`install_dependencies(path)\`
 7. Validate: \`validate_project(path)\`
 8. Build: \`build_project(path)\`
-9. Find port: \`find_available_port(5173)\` → get port
+9. Find port: \`find_available_port(6300)\` → get port
 10. Run: \`run_project(path, port)\` → get URL and processId
 11. Inform: "App running at {URL}, processId: {processId}"
 

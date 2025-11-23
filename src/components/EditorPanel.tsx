@@ -121,6 +121,16 @@ export default function EditorPanel({
     }
   };
 
+  // Reset selected file when project path changes (switching conversations/projects)
+  useEffect(() => {
+    // Clear selected file when project path changes
+    setSelectedFile(null);
+    setFileContent('');
+    setOriginalContent('');
+    setIsEditing(false);
+    setError(null);
+  }, [projectPath]);
+
   // Load content when a file is selected
   useEffect(() => {
     if (selectedFile) {

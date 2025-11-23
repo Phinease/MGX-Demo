@@ -12,6 +12,8 @@ export default defineConfig(({ mode }) => ({
     react(),
   ],
   server: {
+    host: '0.0.0.0', // 监听所有网络接口（Docker 容器需要）
+    port: 5173,
     watch: { usePolling: true, interval: 800 /* 300~1500 */ },
   },
   resolve: {
