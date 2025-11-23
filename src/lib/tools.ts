@@ -1,8 +1,36 @@
 import { tool } from 'langchain';
 import { z } from 'zod';
 
-// 后端 API 基础 URL
-const API_BASE_URL = 'http://localhost:8000';
+/**
+ * 后端 API 基础 URL
+ * 
+ * 优先级：
+ * 1. 环境变量 VITE_API_BASE_URL
+ * 2. 根据当前访问地址自动推断（替换端口为 8000）
+ * 3. 本地开发环境默认值 localhost:8000
+ */
+const getApiBaseUrl = () => {
+  // 1. 优先使用环境变量（Vite 会在构建时注入）
+  if (typeof import.meta.env.VITE_API_BASE_URL !== 'undefined') {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  
+  // 2. 在浏览器环境中，根据当前访问地址推断后端地址
+  if (typeof window !== 'undefined' && window.location) {
+    const { protocol, hostname } = window.location;
+    // 如果前端运行在云服务器上（非 localhost），使用相同主机的 8000 端口
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return `${protocol}//${hostname}:8000`;
+    }
+  }
+  
+  // 3. 默认值（本地开发环境）
+  return 'http://localhost:8000';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
+console.log('🔧 API Base URL:', API_BASE_URL);
 
 // 路径配置缓存
 let pathConfigCache: {
