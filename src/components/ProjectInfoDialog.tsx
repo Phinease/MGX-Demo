@@ -89,36 +89,66 @@ export default function ProjectInfoDialog({ open, onOpenChange }: ProjectInfoDia
   const knownIssues: IssueItem[] = [
     {
       type: 'known',
-      title: '云端部署 localhost 访问问题',
-      description: '已通过 PreviewFrame 组件的云端 IP 替换功能解决，支持全局配置云端服务器地址',
+      title: 'LangChain Update 模式原生问题',
+      description: '在 update 模式下工具无法正常调用，未实现 LLM token 级别的流式输出，影响实时性体验',
     },
     {
       type: 'known',
-      title: 'Agent 工具调用响应延迟',
-      description: 'LLM 响应时间较长，已通过流式输出优化用户体验',
+      title: '依赖安装性能问题',
+      description: 'pnpm 在云端环境由于代理问题可能存在延迟缓慢，影响项目初始化速度',
+    },
+    {
+      type: 'known',
+      title: '智能体提示词优化不足',
+      description: '提示词与核心业务流程需要进一步优化，可能存在遵从较差或执行不精确的问题',
+    },
+    {
+      type: 'known',
+      title: '对话历史保存机制缺陷',
+      description: '未成功运行完整的对话轮次时，没有存入智能体对话历史（上下文），导致续聊上下文丢失',
+    },
+    {
+      type: 'known',
+      title: '云端部署安全与体验问题',
+      description: '云端部署 localhost 无法跳转，需要使用云公共 IP，存在安全隐患与使用体验问题',
     },
   ];
 
   const todoItems: IssueItem[] = [
     {
       type: 'todo',
-      title: '支持更多项目模板',
-      description: '当前仅支持 React + TypeScript 模板，计划支持 Vue、Next.js 等',
+      title: '计划型智能体',
+      description: '支持用户审核与修改编程计划，提供更可控的开发流程',
+    },
+    {
+      type: 'todo',
+      title: '容器化隔离前端项目',
+      description: '为每个生成的前端项目提供独立容器环境，提升安全性和资源隔离',
+    },
+    {
+      type: 'todo',
+      title: 'Nginx 代理方案',
+      description: '通过 Nginx 代理所有生成的前端网页，支持页面访问无需公网 IP 与端口，提升安全性',
     },
     {
       type: 'todo',
       title: '增强错误恢复机制',
-      description: '项目构建失败时自动回滚和重试机制',
+      description: '支持项目构建自动回滚和重试机制，增加版本管理功能',
     },
     {
       type: 'todo',
-      title: '多人协作支持',
-      description: '实现实时协作编辑和会话分享功能',
+      title: '上下文管理优化',
+      description: '支持截断、记忆、总结等更细化的上下文管理，防止超出模型上限，提升长对话体验',
     },
     {
       type: 'todo',
-      title: '项目导出功能',
-      description: '支持将生成的项目打包下载',
+      title: '多角色智能体团队',
+      description: '实现多个专业角色的智能体协作，如架构师、前端工程师、测试工程师等',
+    },
+    {
+      type: 'todo',
+      title: '增强工具鲁棒性',
+      description: '提升各工具的异常处理能力，增加重试机制和更详细的错误提示',
     },
   ];
 
