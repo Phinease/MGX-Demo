@@ -17,6 +17,13 @@ MGX-Demo 是一个创新的 AI 驱动的开发平台，通过集成大语言模�
 - 🐳 **容器化部署**：Docker 一键部署，支持多项目并发运行
 - 🌐 **智能环境适配**：自动检测云端/本地环境，无需手动配置
 
+## 能力演示
+
+<img width="5120" height="2578" alt="2" src="https://github.com/user-attachments/assets/ab27c402-b138-416a-b9f9-19c5f14f766e" />
+<img width="5120" height="2578" alt="3" src="https://github.com/user-attachments/assets/d09fbae1-b6cb-4de1-a1dc-6b254296a7fa" />
+<img width="5120" height="2578" alt="4" src="https://github.com/user-attachments/assets/b76298a2-c251-42de-b5d8-79d02e9962ab" />
+<img width="2560" height="1288" alt="1" src="https://github.com/user-attachments/assets/bb8bc320-d313-4b21-8111-9e5c9c8a571e" />
+
 ## 🚀 核心功能
 
 ### 1. 前端项目编程智能体
