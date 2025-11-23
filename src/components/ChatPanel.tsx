@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Send, Loader2, CheckCircle2, XCircle, Square, ChevronDown, ChevronRight } from 'lucide-react';
+import { Send, Loader2, CheckCircle2, XCircle, Square, ChevronDown, ChevronRight, MessageSquare } from 'lucide-react';
 import { Message, MessageContent } from '@/types';
 import { streamAgent, convertToLangChainMessages } from '@/lib/agent';
 import { toast } from 'sonner';
@@ -593,6 +593,27 @@ export default function ChatPanel({
       </Card>
     );
   };
+
+  // Show empty state when no conversation is selected
+  if (!currentConversationId) {
+    return (
+      <div className="flex flex-col h-full bg-background border-r">
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="text-center space-y-4 max-w-md">
+            <MessageSquare className="h-16 w-16 mx-auto text-muted-foreground opacity-50" />
+            <div className="space-y-2">
+              <h3 className="text-xl font-semibold text-foreground">
+                No Conversation Selected
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Select an existing conversation from the list or create a new one to start chatting.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-background border-r">

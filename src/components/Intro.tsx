@@ -11,25 +11,18 @@ interface IntroProps {
 export default function Intro({ onLoginClick }: IntroProps) {
   const [showProjectInfo, setShowProjectInfo] = useState(false);
 
-  // 自动显示项目信息弹窗（仅首次）
+  // 自动显示项目信息弹窗（每次未登录时都显示）
   useEffect(() => {
-    const hasShown = localStorage.getItem('project-info-shown');
-    if (!hasShown) {
-      // 延迟 500ms 显示，让页面先加载
-      const timer = setTimeout(() => {
-        setShowProjectInfo(true);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
+    // 延迟 500ms 显示，让页面先加载
+    const timer = setTimeout(() => {
+      setShowProjectInfo(true);
+    }, 500);
+    return () => clearTimeout(timer);
   }, []);
 
-  // 处理弹窗关闭，标记为已显示
+  // 处理弹窗关闭
   const handleDialogChange = (open: boolean) => {
     setShowProjectInfo(open);
-    if (!open) {
-      // 用户关闭弹窗时，标记为已显示
-      localStorage.setItem('project-info-shown', 'true');
-    }
   };
   return (
     <>

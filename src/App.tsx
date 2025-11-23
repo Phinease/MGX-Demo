@@ -149,6 +149,21 @@ const App = () => {
     toast.success('Logged out successfully');
   };
   
+  // Handle conversation deletion with proper cleanup
+  const handleDeleteConversation = async (conversationId: string) => {
+    // Check if we're deleting the current conversation
+    const isDeletingCurrent = conversationId === currentConversationId;
+    
+    // Delete the conversation
+    await deleteConversation(conversationId);
+    
+    // If we deleted the current conversation, trigger cleanup
+    if (isDeletingCurrent) {
+      // This will clear all state including messages, project path, preview, etc.
+      await handleSelectConversation(null);
+    }
+  };
+  
   // Handle conversation selection
   const handleSelectConversation = async (conversationId: string | null) => {
     if (conversationId === currentConversationId) return;
@@ -218,6 +233,7 @@ const App = () => {
       setConversationState(null);
       setRunningProject(null);
       clearPreview();
+      clearHistory(); // Clear preview history as well
     }
   };
   
@@ -443,7 +459,7 @@ const App = () => {
               currentConversationId={currentConversationId}
               onSelectConversation={handleSelectConversation}
               onCreateConversation={handleCreateConversation}
-              onDeleteConversation={deleteConversation}
+              onDeleteConversation={handleDeleteConversation}
               onUpdateConversation={updateConversation}
               isCollapsed={conversationListCollapsed}
               onToggleCollapse={() => setConversationListCollapsed(!conversationListCollapsed)}
