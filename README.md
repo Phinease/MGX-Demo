@@ -27,6 +27,8 @@ https://github.com/user-attachments/assets/0f8ad2c6-21d8-443f-96ef-51abcd640787
 <img width="5120" height="2578" alt="3" src="https://github.com/user-attachments/assets/d09fbae1-b6cb-4de1-a1dc-6b254296a7fa" />
 <img width="5120" height="2578" alt="4" src="https://github.com/user-attachments/assets/b76298a2-c251-42de-b5d8-79d02e9962ab" />
 <img width="2560" height="1288" alt="1" src="https://github.com/user-attachments/assets/bb8bc320-d313-4b21-8111-9e5c9c8a571e" />
+<img width="5120" height="2576" alt="PixPin_2025-11-23_15-11-46" src="https://github.com/user-attachments/assets/c5c0ba5e-f926-4f6a-9756-e7fb3b87b652" />
+
 
 ## Cursor编码截图
 
