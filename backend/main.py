@@ -30,14 +30,11 @@ PATH_CONFIG = {
 }
 
 # Configure CORS
+# 支持本地开发和云端部署
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:3000",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,  # 注意：使用 "*" 时必须设置为 False
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -32,6 +32,7 @@ RUN uv sync
 # 安装前端依赖
 WORKDIR /app
 RUN pnpm install
+RUN pnpm config set registry http://mirrors.cloud.aliyuncs.com
 
 # 创建必要的目录
 RUN mkdir -p /app/generated-projects /var/log
