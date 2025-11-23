@@ -28,6 +28,10 @@ https://github.com/user-attachments/assets/0f8ad2c6-21d8-443f-96ef-51abcd640787
 <img width="5120" height="2578" alt="4" src="https://github.com/user-attachments/assets/b76298a2-c251-42de-b5d8-79d02e9962ab" />
 <img width="2560" height="1288" alt="1" src="https://github.com/user-attachments/assets/bb8bc320-d313-4b21-8111-9e5c9c8a571e" />
 
+## Cursor编码截图
+
+<img width="1230" height="1438" alt="PixPin_2025-11-23_15-10-45" src="https://github.com/user-attachments/assets/d339087f-79da-4fc8-9987-6b30b78caa47" />
+
 ## 🚀 核心功能
 
 ### 1. 前端项目编程智能体
