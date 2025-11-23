@@ -70,7 +70,10 @@ export async function* streamAgent(
     // - 'custom' gets custom updates sent via config.writer in tools
     const stream = await agent.stream(
       { messages },
-      { streamMode: ['updates', 'custom'] }
+      { 
+        streamMode: ['updates', 'custom'],
+        recursionLimit: 50
+      }
     );
 
     console.log('[Agent] Stream started with modes (updates, custom)');
@@ -348,31 +351,6 @@ export async function* streamAgent(
       content: `Error: ${error instanceof Error ? error.message : String(error)}`,
       timestamp: new Date().toISOString(),
     };
-  }
-}
-
-// Simple non-streaming call (for testing)
-export async function invokeAgent(input: string, chatHistory: BaseMessage[] = []) {
-  console.log('[Agent] Invoking agent with input:', input);
-  try {
-    const messages = [
-      ...chatHistory,
-      { role: 'user' as const, content: input }
-    ];
-
-    const result = await agent.invoke({ messages });
-    console.log('[Agent] Invoke result:', result);
-    
-    // Get last message
-    if (result.messages && result.messages.length > 0) {
-      const lastMessage = result.messages[result.messages.length - 1];
-      return lastMessage.content;
-    }
-    
-    return 'No response from agent';
-  } catch (error) {
-    console.error('[Agent] Invoke error:', error);
-    throw new Error(`Agent error: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 

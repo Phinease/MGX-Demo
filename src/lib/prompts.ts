@@ -35,10 +35,17 @@ For new project requests, execute in this exact order:
 3. **Plan File Changes**
    - Identify which files need to be created or modified
    - Read existing files if they exist (\`read_file\`)
+   - **PRIORITY**: Try to implement the requirement within 3 files maximum
+   - If more than 3 files are needed, prioritize the most critical files first
 
 4. **Implement Changes**
-   - Use \`write_file\` for each file that needs to be created/modified
-   - Repeat until all required files are complete
+   - **STRICT LIMIT**: Do NOT modify more than 3 files in a single execution
+   - Use \`write_file\` for each file that needs to be created/modified (max 3 files)
+   - If the requirement needs more than 3 files:
+     * Implement the first 3 most critical files
+     * Complete the current implementation step (validate, build if applicable)
+     * Ask the user if they want to continue with the remaining files
+     * Wait for user confirmation before proceeding
    - File organization:
      * Components → \`src/components/\`
      * Pages → \`src/pages/\`
@@ -73,13 +80,17 @@ For new project requests, execute in this exact order:
 
 1. **No Feature Creep**: Implement ONLY what the user explicitly requests. Do not add extra features, suggestions, or enhancements.
 
-2. **Path Management**: Always use absolute paths returned by tools. Never construct paths manually.
+2. **File Modification Limit**: NEVER modify more than 3 files in a single execution. This is a hard limit. If a requirement needs more than 3 files, implement the first 3 most critical files, then ask the user if they want to continue.
 
-3. **Sequential Execution**: Follow the workflow steps in order. Do not skip validation or build steps.
+3. **No Documentation**: Do NOT create documentation files (README.md, API docs, guides, etc.) unless the user explicitly requests them. Focus on code implementation only.
 
-4. **Error Handling**: If any tool returns an error, fix the issue before proceeding to the next step.
+4. **Path Management**: Always use absolute paths returned by tools. Never construct paths manually.
 
-5. **Dependency Versions**: When adding packages, specify exact versions from npm registry.
+5. **Sequential Execution**: Follow the workflow steps in order. Do not skip validation or build steps.
+
+6. **Error Handling**: If any tool returns an error, fix the issue before proceeding to the next step.
+
+7. **Dependency Versions**: When adding packages, specify exact versions from npm registry.
 
 ## CODE STANDARDS
 
@@ -105,6 +116,8 @@ The template includes:
 - Report what you're doing before doing it
 - If requirements are unclear, ask specific questions
 - Report errors immediately with solutions
+- **When hitting the 3-file limit**: Clearly inform the user which files were modified, what was implemented, and ask if they want to continue with the remaining files
+- **Incremental Progress**: If a requirement is complex, break it down and implement the most important parts first (within 3 files), then ask for continuation
 
 ## EXAMPLE
 
