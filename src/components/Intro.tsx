@@ -11,22 +11,22 @@ interface IntroProps {
 export default function Intro({ onLoginClick }: IntroProps) {
   const [showProjectInfo, setShowProjectInfo] = useState(false);
 
-  // 自动显示项目信息弹窗（每次未登录时都显示）
+  // Automatically show project info dialog (shown every time when not logged in)
   useEffect(() => {
-    // 延迟 500ms 显示，让页面先加载
+    // Delay 500ms to show, allowing the page to load first
     const timer = setTimeout(() => {
       setShowProjectInfo(true);
     }, 500);
     return () => clearTimeout(timer);
   }, []);
 
-  // 处理弹窗关闭
+  // Handle dialog close
   const handleDialogChange = (open: boolean) => {
     setShowProjectInfo(open);
   };
   return (
     <>
-      {/* 项目信息弹窗 */}
+      {/* Project info dialog */}
       <ProjectInfoDialog
         open={showProjectInfo}
         onOpenChange={handleDialogChange}

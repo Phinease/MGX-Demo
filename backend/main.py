@@ -9,20 +9,19 @@ import subprocess
 import json
 import shutil
 import socket
-import signal
 from pydantic import BaseModel
 
 app = FastAPI(title="File System API")
 
-# 进程管理：存储运行中的开发服务器进程
+# Process management: store running development server processes
 running_processes: Dict[str, dict] = {}
 
-# ================== 路径配置 ==================
-# 自动检测项目根目录（后端文件的父目录）
+# ================== Path Configuration ==================
+# Auto-detect project root directory (parent directory of backend files)
 BACKEND_DIR = Path(__file__).parent
 PROJECT_ROOT = BACKEND_DIR.parent
 
-# 配置路径
+# Path configuration
 PATH_CONFIG = {
     "template_path": str((PROJECT_ROOT / "shadcn-ui").absolute()),
     "projects_base_path": str((PROJECT_ROOT / "generated-projects").absolute()),
@@ -30,11 +29,11 @@ PATH_CONFIG = {
 }
 
 # Configure CORS
-# 支持本地开发和云端部署
+# Support local development and cloud deployment
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=False,  # 注意：使用 "*" 时必须设置为 False
+    allow_credentials=False,  # Note: must be set to False when using "*"
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -163,10 +162,10 @@ def read_root():
 @app.get("/api/config/paths")
 def get_path_config() -> dict:
     """
-    获取路径配置信息
+    Get path configuration information
     
     Returns:
-        包含模板路径、项目基础路径等配置信息
+        Configuration information including template path, project base path, etc.
     """
     return {
         "template_path": PATH_CONFIG["template_path"],

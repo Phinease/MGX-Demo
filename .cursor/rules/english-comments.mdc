@@ -1,0 +1,55 @@
+---
+description: All code comments must be in English
+globs:
+alwaysApply: true
+---
+
+# English Comments Requirement
+
+**All code comments, documentation strings, and inline explanations MUST be written in English.**
+
+## Rules
+
+1. **Code Comments**: All single-line (`//`) and multi-line (`/* */`) comments must be in English
+2. **JSDoc/TSDoc**: All documentation comments for functions, classes, and types must be in English
+3. **Inline Comments**: All inline explanations and annotations must be in English
+4. **File Headers**: All file header comments must be in English
+5. **Configuration Comments**: Comments in configuration files (Dockerfile, docker-compose.yml, shell scripts, etc.) must be in English
+
+## Exceptions
+
+- User-facing strings (UI text, error messages shown to users) can be in any language as required by the application
+- String literals that are part of the application logic (not comments) can be in any language
+- Variable names, function names, and other identifiers should follow the project's naming conventions (typically English)
+
+## Examples
+
+✅ **Correct:**
+```typescript
+// Get path configuration from backend
+const pathConfig = await getPathConfig();
+
+/**
+ * Initialize a new project by copying the template
+ * @returns The absolute path of the new project
+ */
+```
+
+❌ **Incorrect:**
+```typescript
+// 从后端获取路径配置
+const pathConfig = await getPathConfig();
+
+/**
+ * 初始化新项目
+ * @returns 新项目的绝对路径
+ */
+```
+
+## Purpose
+
+This rule ensures:
+- Code maintainability for international teams
+- Consistency across the codebase
+- Better integration with development tools and IDEs
+- Easier code reviews and collaboration

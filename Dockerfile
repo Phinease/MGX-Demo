@@ -1,67 +1,67 @@
-# 使用官方 Python 3.11 镜像作为基础
+# Use official Python 3.11 image as base
 FROM python:3.11-slim
 
-# 设置工作目录
+# Set working directory
 WORKDIR /app
 
-# 安装系统依赖
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 Node.js 20.x (LTS)
+# Install Node.js 20.x (LTS)
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 uv (Python 包管理器)
+# Install uv (Python package manager)
 RUN pip install --no-cache-dir uv
 RUN uv --version
 
-# 安装 pnpm (Node.js 包管理器)
+# Install pnpm (Node.js package manager)
 RUN npm install -g pnpm@8.10.0
 
-# 复制项目源码（遵循 .dockerignore）
+# Copy project source code (respects .dockerignore)
 COPY . .
 
-# 安装后端依赖（使用 uv sync，使用完整路径）
+# Install backend dependencies (using uv sync with full path)
 WORKDIR /app/backend
 RUN uv sync
 
-# 安装前端依赖
+# Install frontend dependencies
 WORKDIR /app
 RUN pnpm install
 RUN pnpm config set registry http://mirrors.cloud.aliyuncs.com
 
-# 创建必要的目录
+# Create necessary directories
 RUN mkdir -p /app/generated-projects /var/log
 
-# 设置环境变量
+# Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV NODE_ENV=development
 
-# 切换到后端目录
+# Switch to backend directory
 WORKDIR /app/backend
 
-# 创建启动脚本（同时启动前端和后端）
+# Create startup script (starts both frontend and backend)
 RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
 echo "🚀 Starting MGX-Demo Services..."\n\
 echo "================================"\n\
 \n\
-# 启动前端开发服务器（后台运行）\n\
+# Start frontend development server (background)\n\
 echo "📦 Starting Frontend (Vite)..."\n\
 cd /app\n\
 pnpm dev > /var/log/frontend.log 2>&1 &\n\
 FRONTEND_PID=$!\n\
 echo "✅ Frontend started (PID: $FRONTEND_PID) on port 5173"\n\
 \n\
-# 等待前端启动\n\
+# Wait for frontend to start\n\
 sleep 3\n\
 \n\
-# 启动后端服务器\n\
+# Start backend server\n\
 echo ""\n\
 echo "🐍 Starting Backend (FastAPI)..."\n\
 cd /app/backend\n\
@@ -79,13 +79,13 @@ echo "  - API Docs: http://localhost:8000/docs"\n\
 echo "================================"\n\
 echo ""\n\
 \n\
-# 启动后端（前台运行）\n\
+# Start backend (foreground)\n\
 python start.py\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
-# 切换回根目录
+# Switch back to root directory
 WORKDIR /app
 
-# 启动所有服务
+# Start all services
 CMD ["/app/start.sh"]
 

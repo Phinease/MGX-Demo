@@ -1,6 +1,6 @@
 /**
- * 系统提示词配置
- * 定义了前端编码智能体的核心行为和指令
+ * System prompt configuration
+ * Defines the core behavior and instructions for the frontend coding agent
  */
 
 export const FRONTEND_CODING_AGENT_PROMPT = `You are a Frontend Coding Agent specialized in React + TypeScript web applications.

@@ -114,17 +114,17 @@ export default function ChatPanel({
           console.log(`[ChatPanel] Chunk #${chunkCount}:`, chunk);
 
           // ============================================
-          // 处理文件写入开始事件
+          // Handle file write start event
           // ============================================
           if (chunk.type === 'file_write_start') {
             console.log('[ChatPanel] File write start:', chunk.filePath);
             
-            // 触发文件预览（不在对话框中显示详细内容）
+            // Trigger file preview (detailed content not shown in dialog)
             if (onFileWriteStart && chunk.filePath && chunk.fileContent) {
               onFileWriteStart(chunk.filePath, chunk.fileContent);
             }
             
-            // 在对话框中只显示简短提示
+            // Show only brief hint in dialog
             customUpdates.push(`📝 Writing file: ${chunk.filePath}`);
             
             setMessages(prev => {
@@ -151,20 +151,16 @@ export default function ChatPanel({
               return newMessages;
             });
           }
-          // ============================================
-          // 处理文件写入内容流式更新
-          // ============================================
+          // Handle file write content streaming updates
           else if (chunk.type === 'file_write_content') {
             console.log('[ChatPanel] File write content chunk');
             
-            // 触发预览组件更新（不在对话框中显示）
+            // Trigger preview component update (not shown in dialog)
             if (onFileWriteContent && chunk.content) {
               onFileWriteContent(chunk.content);
             }
           }
-          // ============================================
-          // 处理自定义更新（工具的 config.writer 输出）
-          // ============================================
+          // Handle custom updates (tool's config.writer output)
           else if (chunk.type === 'custom') {
             console.log('[ChatPanel] Custom update:', chunk.content);
             customUpdates.push(chunk.content);
@@ -194,7 +190,7 @@ export default function ChatPanel({
             });
           }
           // ============================================
-          // 处理完整文本（向后兼容）
+          // Handle complete text (backward compatibility)
           // ============================================
           else if (chunk.type === 'text') {
             textChunks.push(chunk.content);
@@ -224,9 +220,7 @@ export default function ChatPanel({
               return newMessages;
             });
           }
-          // ============================================
-          // 处理工具调用
-          // ============================================
+          // Handle tool call
           else if (chunk.type === 'tool_call') {
             console.log('[ChatPanel] Tool call:', chunk.toolName, chunk.toolInput);
             
@@ -269,13 +263,11 @@ export default function ChatPanel({
               return newMessages;
             });
           }
-          // ============================================
-          // 处理工具调用结果
-          // ============================================
+          // Handle tool call result
           else if (chunk.type === 'tool_result') {
             console.log('[ChatPanel] Tool result:', chunk.toolName, chunk.toolOutput);
             
-            // 检查是否是 initialize_project 工具调用成功
+            // Check if initialize_project tool call succeeded
             if (chunk.toolName === 'initialize_project' && chunk.toolOutput) {
               try {
                 const output = typeof chunk.toolOutput === 'string' 
@@ -290,7 +282,7 @@ export default function ChatPanel({
               }
             }
             
-            // 检查是否是 run_project 工具调用成功
+            // Check if run_project tool call succeeded
             if (chunk.toolName === 'run_project' && chunk.toolOutput) {
               try {
                 const output = typeof chunk.toolOutput === 'string' 
@@ -310,7 +302,7 @@ export default function ChatPanel({
               }
             }
             
-            // 检查是否是 stop_project 工具调用成功
+            // Check if stop_project tool call succeeded
             if (chunk.toolName === 'stop_project' && chunk.toolOutput) {
               try {
                 const output = typeof chunk.toolOutput === 'string' 
@@ -327,7 +319,7 @@ export default function ChatPanel({
             
             const toolCall = toolCalls.get(chunk.toolName || 'unknown');
             if (toolCall && toolCall.toolCall) {
-              // 检查是否是错误结果
+              // Check if result is an error
               const isError = typeof chunk.toolOutput === 'string' && chunk.toolOutput.startsWith('Error:');
               toolCall.toolCall.status = isError ? 'failed' : 'completed';
               toolCall.toolCall.output = chunk.toolOutput;
@@ -358,13 +350,13 @@ export default function ChatPanel({
             }
           }
           // ============================================
-          // 处理步骤信息
+          // Handle step information
           // ============================================
           else if (chunk.type === 'step') {
             console.log('[ChatPanel] Step:', chunk.stepName);
           }
           // ============================================
-          // 处理错误
+          // Handle error
           // ============================================
           else if (chunk.type === 'error') {
             console.error('[ChatPanel] Error chunk:', chunk.content);
@@ -375,7 +367,7 @@ export default function ChatPanel({
         console.log(`[ChatPanel] Stream completed. Total chunks: ${chunkCount}`);
         console.log(`[ChatPanel] Text chunks collected: ${textChunks.length}, Tool calls: ${toolCalls.size}`);
         
-        // 通知文件写入完成
+        // Notify file write completion
         if (onFileWriteComplete) {
           onFileWriteComplete();
         }
@@ -395,7 +387,7 @@ export default function ChatPanel({
           onSaveMessage(currentConversationId, finalAgentMessage);
         }
         
-        // 如果没有生成任何内容，显示提示消息
+        // If no content was generated, show a hint message
         if (textChunks.length === 0 && toolCalls.size === 0) {
           console.warn('[ChatPanel] No content generated');
           setMessages(prev => {
@@ -481,7 +473,7 @@ export default function ChatPanel({
     }
   };
 
-  // 切换工具卡片的展开/折叠状态
+  // Toggle tool card expand/collapse state
   const toggleToolExpanded = (toolId: string) => {
     setExpandedTools(prev => {
       const newSet = new Set(prev);
@@ -494,7 +486,7 @@ export default function ChatPanel({
     });
   };
 
-  // 截断长文本用于预览
+  // Truncate long text for preview
   const truncateText = (text: string, maxLength: number = 100): string => {
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
@@ -507,7 +499,7 @@ export default function ChatPanel({
     const toolId = id || `${name}-${content.toolCall.timestamp}`;
     const isExpanded = expandedTools.has(toolId);
 
-    // 格式化输出内容
+    // Format output content
     const formatContent = (data: any): string => {
       if (typeof data === 'string') return data;
       return JSON.stringify(data, null, 2);
@@ -518,7 +510,7 @@ export default function ChatPanel({
 
     return (
       <Card className="mt-2 bg-muted/50 overflow-hidden">
-        {/* 工具头部 - 始终可见 */}
+        {/* Tool header - always visible */}
         <div 
           className="p-3 cursor-pointer hover:bg-muted/70 transition-colors"
           onClick={() => toggleToolExpanded(toolId)}
@@ -545,7 +537,7 @@ export default function ChatPanel({
             </Badge>
           </div>
           
-          {/* 预览信息 - 折叠时显示 */}
+          {/* Preview info - shown when collapsed */}
           {!isExpanded && (input || output) && (
             <div className="mt-2 text-xs text-muted-foreground">
               {input && (
@@ -564,7 +556,7 @@ export default function ChatPanel({
           )}
         </div>
 
-        {/* 详细信息 - 展开时显示 */}
+        {/* Detailed info - shown when expanded */}
         {isExpanded && (
           <div className="px-3 pb-3 space-y-3 border-t pt-3">
             {input && (

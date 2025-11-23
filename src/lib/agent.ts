@@ -2,11 +2,11 @@ import { ChatOpenAI } from '@langchain/openai';
 import { createAgent } from 'langchain';
 import { HumanMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
 
-// 导入工具和提示词
+// Import tools and prompts
 import { tools } from './tools';
 import { SYSTEM_PROMPTS } from './prompts';
 
-// 配置 OpenAI 兼容模型（通义千问）
+// Configure OpenAI-compatible model (Qwen)
 const model = new ChatOpenAI({
   model: 'qwen-plus',
   temperature: 0.7,
@@ -16,14 +16,14 @@ const model = new ChatOpenAI({
   },
 });
 
-// 创建前端编码智能体
+// Create frontend coding agent
 const agent = createAgent({
   model: model,
   tools: tools,
   systemPrompt: SYSTEM_PROMPTS.FRONTEND_CODING,
 });
 
-// 导出类型定义
+// Export type definitions
 export interface StreamChunk {
   type: 'text' | 'tool_call' | 'tool_result' | 'step' | 'error' | 'custom' | 'file_write_start' | 'file_write_content';
   content: string;
@@ -32,13 +32,12 @@ export interface StreamChunk {
   toolOutput?: any;
   stepName?: string;
   timestamp: string;
-  // 新增：用于文件写入预览
   filePath?: string;
   fileContent?: string;
   isStreaming?: boolean;
 }
 
-// 流式执行 agent - 使用多种 stream mode 获取完整信息
+// Stream agent execution - use multiple stream modes to get complete information
 export async function* streamAgent(
   input: string,
   chatHistory: BaseMessage[] = [],
@@ -48,7 +47,7 @@ export async function* streamAgent(
   console.log('[Agent] Chat history length:', chatHistory.length);
   
   try {
-    // 检查是否已经被取消
+    // Check if already aborted
     if (abortSignal?.aborted) {
       yield {
         type: 'error',
@@ -58,7 +57,7 @@ export async function* streamAgent(
       return;
     }
 
-    // 构建消息列表
+    // Build message list
     const messages = [
       ...chatHistory,
       { role: 'user' as const, content: input }
@@ -66,9 +65,9 @@ export async function* streamAgent(
 
     console.log('[Agent] Calling agent.stream with messages:', messages.length);
 
-    // 使用多种 streamMode 来获取完整的信息：
-    // - 'updates' 获取每个 agent 步骤的更新（完整的工具调用信息和最终文本）
-    // - 'custom' 获取工具中通过 config.writer 发送的自定义更新
+    // Use multiple streamModes to get complete information:
+    // - 'updates' gets updates for each agent step (complete tool call info and final text)
+    // - 'custom' gets custom updates sent via config.writer in tools
     const stream = await agent.stream(
       { messages },
       { streamMode: ['updates', 'custom'] }
@@ -76,12 +75,12 @@ export async function* streamAgent(
 
     console.log('[Agent] Stream started with modes (updates, custom)');
 
-    // 跟踪已处理的消息和工具调用
+    // Track processed messages and tool calls
     const processedToolCalls = new Set<string>();
-    const seenSteps = new Set<string>(); // 跟踪已处理的步骤
+    const seenSteps = new Set<string>(); // Track processed steps
 
     for await (const chunk of stream) {
-      // 检查是否被取消
+      // Check if aborted
       if (abortSignal?.aborted) {
         console.log('[Agent] Stream aborted by user');
         yield {
@@ -92,7 +91,7 @@ export async function* streamAgent(
         break;
       }
 
-      // Multiple streaming modes 返回格式：[streamMode, data]
+      // Multiple streaming modes return format: [streamMode, data]
       if (!Array.isArray(chunk) || chunk.length !== 2) {
         console.warn('[Agent] Unexpected chunk format:', chunk);
         continue;
@@ -102,14 +101,14 @@ export async function* streamAgent(
       console.log(`[Agent] Received ${streamMode} chunk:`, typeof data === 'string' ? data.substring(0, 100) : data);
 
       // ============================================
-      // 处理 'custom' 模式：工具内部通过 config.writer 发送的更新
+      // Handle 'custom' mode: Updates sent via config.writer inside tools
       // ============================================
       if (streamMode === 'custom') {
         console.log('[Agent] Custom update:', data);
         if (typeof data === 'string') {
           console.log('[Agent] Custom update:', data);
           
-          // 检查是否是文件写入相关的更新
+          // Check if it's a file write related update
           if (data.includes('Writing to file:')) {
             const pathMatch = data.match(/Writing to file: (.+)/);
             if (pathMatch) {
@@ -123,7 +122,7 @@ export async function* streamAgent(
             }
           }
           
-          // 普通的 custom 更新
+          // Regular custom update
           yield {
             type: 'custom',
             content: data,
@@ -134,16 +133,16 @@ export async function* streamAgent(
       }
 
       // ============================================
-      // 处理 'updates' 模式：完整的 Agent 步骤更新
+      // Handle 'updates' mode: Complete Agent step updates
       // ============================================
       if (streamMode === 'updates') {
         console.log('[Agent] Updates mode:', data);
-        // updates 模式返回的是一个对象，key 是节点名，value 是更新内容
+        // Updates mode returns an object, key is node name, value is update content
         if (!data || typeof data !== 'object') {
           continue;
         }
 
-        // 获取节点名和更新内容
+        // Get node name and update content
         const entries = Object.entries(data);
         if (entries.length === 0) {
           continue;
@@ -154,13 +153,13 @@ export async function* streamAgent(
 
         const stepKey = `${nodeName}-${Date.now()}`;
         
-        // 检查是否已处理过此步骤（避免重复）
+        // Check if this step has been processed (avoid duplicates)
         if (seenSteps.has(stepKey)) {
           continue;
         }
         seenSteps.add(stepKey);
 
-        // 处理节点更新
+        // Process node update
         const updateData = nodeUpdate as any;
         
         if (updateData.messages && Array.isArray(updateData.messages)) {
@@ -169,9 +168,9 @@ export async function* streamAgent(
           for (const message of messages) {
             const messageType = message._getType?.() || message.type || message.constructor?.name;
             
-            // 处理 AI 消息中的工具调用
+            // Handle tool calls in AI messages
             if (messageType === 'ai' || messageType === 'AIMessage' || messageType === 'AIMessageChunk') {
-              // 处理AI消息的文本内容
+              // Handle AI message text content
               const content = message.content || message.kwargs?.content;
               if (content && typeof content === 'string' && content.trim()) {
                 console.log('[Agent] AI response text:', content);
@@ -182,10 +181,10 @@ export async function* streamAgent(
                 };
               }
               
-              // 尝试从多个位置获取工具调用信息
+              // Try to get tool call info from multiple locations
               let toolCalls = message.tool_calls || message.kwargs?.tool_calls;
               
-              // 如果 tool_calls 为空，尝试从 tool_call_chunks 获取
+              // If tool_calls is empty, try to get from tool_call_chunks
               if (!toolCalls || toolCalls.length === 0) {
                 const toolCallChunks = message.tool_call_chunks || message.kwargs?.tool_call_chunks;
                 if (toolCallChunks && Array.isArray(toolCallChunks) && toolCallChunks.length > 0) {
@@ -209,7 +208,7 @@ export async function* streamAgent(
                 }
               }
               
-              // 如果还是没有，尝试从 additional_kwargs.tool_calls 获取
+              // If still empty, try to get from additional_kwargs.tool_calls
               if (!toolCalls || toolCalls.length === 0) {
                 const additionalToolCalls = message.kwargs?.additional_kwargs?.tool_calls;
                 if (additionalToolCalls && Array.isArray(additionalToolCalls) && additionalToolCalls.length > 0) {
@@ -233,7 +232,7 @@ export async function* streamAgent(
                 }
               }
               
-              // 处理 invalid_tool_calls (工具调用失败)
+              // Handle invalid_tool_calls (tool call failures)
               const invalidToolCalls = message.invalid_tool_calls || message.kwargs?.invalid_tool_calls;
               if (invalidToolCalls && Array.isArray(invalidToolCalls) && invalidToolCalls.length > 0) {
                 console.log('[Agent] Invalid tool calls detected:', invalidToolCalls);
@@ -243,19 +242,19 @@ export async function* streamAgent(
                   if (!processedToolCalls.has(toolId)) {
                     processedToolCalls.add(toolId);
                     
-                    // 安全地解析工具参数
+                    // Safely parse tool arguments
                     let parsedArgs = invalidCall.args;
                     if (typeof invalidCall.args === 'string') {
                       try {
                         parsedArgs = JSON.parse(invalidCall.args);
                       } catch (parseError) {
                         console.warn('[Agent] Failed to parse invalid tool call args:', parseError);
-                        // 如果解析失败，保留原始字符串
+                        // If parsing fails, keep original string
                         parsedArgs = { raw: invalidCall.args, parseError: parseError instanceof Error ? parseError.message : String(parseError) };
                       }
                     }
                     
-                    // 发送工具调用失败信息
+                    // Send tool call failure info
                     yield {
                       type: 'tool_call',
                       content: `Tool call failed: ${invalidCall.name} - ${invalidCall.error}`,
@@ -264,7 +263,7 @@ export async function* streamAgent(
                       timestamp: new Date().toISOString(),
                     };
                     
-                    // 立即发送失败结果
+                    // Immediately send failure result
                     yield {
                       type: 'tool_result',
                       content: `Error: ${invalidCall.error}`,
@@ -284,7 +283,7 @@ export async function* streamAgent(
                     console.log('[Agent] Tool call detected:', toolCall);
                     processedToolCalls.add(toolId);
                     
-                    // 特殊处理 write_file 工具
+                    // Special handling for write_file tool
                     if (toolCall.name === 'write_file') {
                       yield {
                         type: 'file_write_start',
@@ -297,7 +296,7 @@ export async function* streamAgent(
                       };
                     }
                     
-                    // 发送工具调用信息
+                    // Send tool call info
                     yield {
                       type: 'tool_call',
                       content: `Calling ${toolCall.name}...`,
@@ -310,7 +309,7 @@ export async function* streamAgent(
               }
             }
             
-            // 处理工具消息（工具执行结果）
+            // Handle tool messages (tool execution results)
             else if (messageType === 'tool' || messageType === 'ToolMessage') {
               const content = message.content || message.kwargs?.content;
               const toolName = message.name || message.kwargs?.name || 'unknown';
@@ -329,7 +328,7 @@ export async function* streamAgent(
           }
         }
         
-        // 发送步骤完成信息
+        // Send step completion info
         yield {
           type: 'step',
           content: `Step completed: ${nodeName}`,
@@ -352,7 +351,7 @@ export async function* streamAgent(
   }
 }
 
-// 简单的非流式调用（用于测试）
+// Simple non-streaming call (for testing)
 export async function invokeAgent(input: string, chatHistory: BaseMessage[] = []) {
   console.log('[Agent] Invoking agent with input:', input);
   try {
@@ -364,7 +363,7 @@ export async function invokeAgent(input: string, chatHistory: BaseMessage[] = []
     const result = await agent.invoke({ messages });
     console.log('[Agent] Invoke result:', result);
     
-    // 获取最后一条消息
+    // Get last message
     if (result.messages && result.messages.length > 0) {
       const lastMessage = result.messages[result.messages.length - 1];
       return lastMessage.content;
@@ -377,7 +376,7 @@ export async function invokeAgent(input: string, chatHistory: BaseMessage[] = []
   }
 }
 
-// 辅助函数：转换消息格式
+// Helper function: Convert message format
 export function convertToLangChainMessages(messages: Array<{ role: string; content: string }>): BaseMessage[] {
   return messages.map(msg => {
     if (msg.role === 'user') {
@@ -388,7 +387,7 @@ export function convertToLangChainMessages(messages: Array<{ role: string; conte
   });
 }
 
-// 导出 agent 和相关工具
+// Export agent and related tools
 export { agent, model };
 export { tools } from './tools';
 export { SYSTEM_PROMPTS } from './prompts';

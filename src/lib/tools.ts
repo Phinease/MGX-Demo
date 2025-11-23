@@ -2,29 +2,29 @@ import { tool } from 'langchain';
 import { z } from 'zod';
 
 /**
- * 后端 API 基础 URL
+ * Backend API base URL
  * 
- * 优先级：
- * 1. 环境变量 VITE_API_BASE_URL
- * 2. 根据当前访问地址自动推断（替换端口为 8000）
- * 3. 本地开发环境默认值 localhost:8000
+ * Priority:
+ * 1. Environment variable VITE_API_BASE_URL
+ * 2. Auto-infer from current access address (replace port with 8000)
+ * 3. Default value for local development: localhost:8000
  */
 const getApiBaseUrl = () => {
-  // 1. 优先使用环境变量（Vite 会在构建时注入）
+  // 1. Priority: use environment variable (injected by Vite at build time)
   if (typeof import.meta.env.VITE_API_BASE_URL !== 'undefined') {
     return import.meta.env.VITE_API_BASE_URL;
   }
   
-  // 2. 在浏览器环境中，根据当前访问地址推断后端地址
+  // 2. In browser environment, infer backend address from current access address
   if (typeof window !== 'undefined' && window.location) {
     const { protocol, hostname } = window.location;
-    // 如果前端运行在云服务器上（非 localhost），使用相同主机的 8000 端口
+    // If frontend runs on cloud server (not localhost), use same host with port 8000
     if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
       return `${protocol}//${hostname}:8000`;
     }
   }
   
-  // 3. 默认值（本地开发环境）
+  // 3. Default value (local development environment)
   return 'http://localhost:8000';
 };
 
@@ -32,7 +32,7 @@ const API_BASE_URL = getApiBaseUrl();
 
 console.log('🔧 API Base URL:', API_BASE_URL);
 
-// 路径配置缓存
+// Path configuration cache
 let pathConfigCache: {
   templatePath: string;
   projectsBasePath: string;
@@ -40,10 +40,10 @@ let pathConfigCache: {
 } | null = null;
 
 /**
- * 从后端获取路径配置
- * 该函数会缓存结果，避免重复请求
+ * Get path configuration from backend
+ * This function caches results to avoid repeated requests
  * 
- * @returns Promise<PathConfig> 包含模板路径、项目基础路径等配置
+ * @returns Promise<PathConfig> Contains template path, project base path, etc.
  */
 export async function getPathConfig(): Promise<{
   templatePath: string;
@@ -75,8 +75,8 @@ export async function getPathConfig(): Promise<{
   } catch (error) {
     console.error('❌ Failed to load path configuration:', error);
     
-    // 如果无法从后端获取配置，使用默认的容器路径
-    // 在容器内运行时，这些路径应该是正确的
+    // If unable to get config from backend, use default container paths
+    // These paths should be correct when running inside container
     pathConfigCache = {
       templatePath: '/app/shadcn-ui',
       projectsBasePath: '/app/generated-projects',
@@ -91,24 +91,24 @@ export async function getPathConfig(): Promise<{
 
 
 /**
- * 工具 1: 初始化项目
- * 复制模板项目到新的文件夹，并返回新项目的绝对路径
+ * Tool 1: Initialize project
+ * Copy template project to new folder and return absolute path of new project
  */
 export const initializeProjectTool = tool(
   async (input) => {
     const { projectName } = input;
     
     try {
-      // 从后端获取路径配置
+      // Get path configuration from backend
       const pathConfig = await getPathConfig();
       
-      // 生成随机后缀（6位字母数字）
+      // Generate random suffix (6 alphanumeric characters)
       const randomSuffix = Math.random().toString(36).substring(2, 8);
       const newProjectName = `${projectName}-${randomSuffix}`;
       
       console.log(`🚀 Initializing project "${newProjectName}" using template: ${pathConfig.templatePath}`);
       
-      // 调用后端 API 复制项目
+      // Call backend API to copy project
       const response = await fetch(`${API_BASE_URL}/api/project/initialize`, {
         method: 'POST',
         headers: {
@@ -152,7 +152,7 @@ export const initializeProjectTool = tool(
 );
 
 /**
- * 工具 2: 读取文件内容
+ * Tool 2: Read file content
  */
 export const readFileTool = tool(
   async (input) => {
@@ -189,7 +189,7 @@ export const readFileTool = tool(
 );
 
 /**
- * 工具 3: 读取文件树结构
+ * Tool 3: Read file tree structure
  */
 export const readFileTreeTool = tool(
   async (input) => {
@@ -222,7 +222,7 @@ export const readFileTreeTool = tool(
 );
 
 /**
- * 工具 4: 创建或重写文件
+ * Tool 4: Create or overwrite file
  */
 export const writeFileTool = tool(
   async (input) => {
@@ -264,7 +264,7 @@ export const writeFileTool = tool(
 );
 
 /**
- * 工具 5: 安装项目依赖
+ * Tool 5: Install project dependencies
  */
 export const installDependenciesTool = tool(
   async (input) => {
@@ -286,7 +286,7 @@ export const installDependenciesTool = tool(
         return `Error: ${error.detail}`;
       }
       
-      // 读取流式响应
+      // Read streaming response
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let fullOutput = '';
@@ -320,7 +320,7 @@ export const installDependenciesTool = tool(
                 fullOutput += event.data;
               }
             } catch (e) {
-              // 忽略 JSON 解析错误
+              // Ignore JSON parse errors
             }
           }
         }
@@ -341,7 +341,7 @@ export const installDependenciesTool = tool(
 );
 
 /**
- * 工具 6: 验证项目（运行 ESLint）
+ * Tool 6: Validate project (run ESLint)
  */
 export const validateProjectTool = tool(
   async (input) => {
@@ -363,7 +363,7 @@ export const validateProjectTool = tool(
         return `Error: ${error.detail}`;
       }
       
-      // 读取流式响应
+      // Read streaming response
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let fullOutput = '';
@@ -397,7 +397,7 @@ export const validateProjectTool = tool(
                 fullOutput += event.data;
               }
             } catch (e) {
-              // 忽略 JSON 解析错误
+              // Ignore JSON parse errors
             }
           }
         }
@@ -418,7 +418,7 @@ export const validateProjectTool = tool(
 );
 
 /**
- * 工具 7: 构建项目
+ * Tool 7: Build project
  */
 export const buildProjectTool = tool(
   async (input) => {
@@ -440,7 +440,7 @@ export const buildProjectTool = tool(
         return `Error: ${error.detail}`;
       }
       
-      // 读取流式响应
+      // Read streaming response
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let fullOutput = '';
@@ -474,7 +474,7 @@ export const buildProjectTool = tool(
                 fullOutput += event.data;
               }
             } catch (e) {
-              // 忽略 JSON 解析错误
+              // Ignore JSON parse errors
             }
           }
         }
@@ -495,7 +495,7 @@ export const buildProjectTool = tool(
 );
 
 /**
- * 工具 8: 运行项目（开发服务器）
+ * Tool 8: Run project (development server)
  */
 export const runProjectTool = tool(
   async (input) => {
@@ -544,7 +544,7 @@ export const runProjectTool = tool(
 );
 
 /**
- * 工具 9: 停止运行的项目
+ * Tool 9: Stop running project
  */
 export const stopProjectTool = tool(
   async (input) => {
@@ -589,7 +589,7 @@ export const stopProjectTool = tool(
 );
 
 /**
- * 工具 10: 查找可用端口
+ * Tool 10: Find available port
  */
 export const findAvailablePortTool = tool(
   async (input) => {
@@ -627,7 +627,7 @@ export const findAvailablePortTool = tool(
 );
 
 /**
- * 工具 11: 执行通用命令（保留用于特殊情况）
+ * Tool 11: Execute generic command (reserved for special cases)
  */
 export const executeCommandTool = tool(
   async (input) => {
@@ -651,7 +651,7 @@ export const executeCommandTool = tool(
         return `Error: ${error.detail}`;
       }
       
-      // 读取流式响应
+      // Read streaming response
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let fullOutput = '';
@@ -685,7 +685,7 @@ export const executeCommandTool = tool(
                 fullOutput += event.data;
               }
             } catch (e) {
-              // 忽略 JSON 解析错误
+              // Ignore JSON parse errors
             }
           }
         }
@@ -707,7 +707,7 @@ export const executeCommandTool = tool(
   }
 );
 
-// 导出所有工具
+// Export all tools
 export const tools = [
   initializeProjectTool,
   readFileTool,
@@ -722,7 +722,7 @@ export const tools = [
   executeCommandTool,
 ];
 
-// 导出工具名称映射（用于调试和日志）
+// Export tool name mapping (for debugging and logging)
 export const toolNames = {
   INITIALIZE_PROJECT: 'initialize_project',
   READ_FILE: 'read_file',
