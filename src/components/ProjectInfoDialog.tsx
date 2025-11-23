@@ -140,6 +140,16 @@ export default function ProjectInfoDialog({ open, onOpenChange }: ProjectInfoDia
       title: '增强工具鲁棒性',
       description: '提升各工具的异常处理能力，增加重试机制和更详细的错误提示',
     },
+    {
+      type: 'todo',
+      title: '前端UI优化',
+      description: '提升用户界面的视觉效果和交互体验，优化布局和样式设计',
+    },
+    {
+      type: 'todo',
+      title: '标题自动生成',
+      description: '支持根据对话内容自动生成会话标题，提升会话管理的便利性',
+    },
   ];
 
   return (
