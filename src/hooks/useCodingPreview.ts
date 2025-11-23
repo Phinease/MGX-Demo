@@ -13,7 +13,6 @@ export interface FilePreview {
  */
 export function useCodingPreview() {
   const [currentPreview, setCurrentPreview] = useState<FilePreview | null>(null);
-  const [previewHistory, setPreviewHistory] = useState<FilePreview[]>([]);
 
   /**
    * Start a new file preview
@@ -77,9 +76,6 @@ export function useCodingPreview() {
         isStreaming: false,
       };
       
-      // Add to history
-      setPreviewHistory((history) => [...history, completedPreview]);
-      
       return completedPreview;
     });
   }, []);
@@ -97,12 +93,10 @@ export function useCodingPreview() {
    */
   const clearHistory = useCallback(() => {
     console.log('[useCodingPreview] Clearing history');
-    setPreviewHistory([]);
   }, []);
 
   return {
     currentPreview,
-    previewHistory,
     startPreview,
     appendContent,
     setContent,

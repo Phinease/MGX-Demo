@@ -12,9 +12,8 @@ export interface UseFileTreeResult {
   fileTree: FileNode[];
   isLoading: boolean;
   error: string | null;
-  isBackendConnected: boolean;
   loadFileTree: () => Promise<void>;
-  checkConnection: () => Promise<void>;
+  checkConnection: () => Promise<boolean>;
 }
 
 /**
@@ -29,14 +28,12 @@ export function useFileTree(options: UseFileTreeOptions = {}): UseFileTreeResult
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isBackendConnected, setIsBackendConnected] = useState(false);
 
   /**
    * Check backend connection
    */
   const checkConnection = async () => {
     const connected = await checkBackendConnection();
-    setIsBackendConnected(connected);
     return connected;
   };
 
@@ -86,7 +83,6 @@ export function useFileTree(options: UseFileTreeOptions = {}): UseFileTreeResult
     fileTree,
     isLoading,
     error,
-    isBackendConnected,
     loadFileTree,
     checkConnection,
   };

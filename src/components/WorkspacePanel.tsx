@@ -106,7 +106,6 @@ export default function WorkspacePanel({
           <EditorPanel
             fileTree={fileTree}
             projectPath={projectPath}
-            isLoading={isLoading}
             onRefresh={onRefresh}
             projectInitialized={projectInitialized}
           />

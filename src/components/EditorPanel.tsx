@@ -11,7 +11,6 @@ import CodeEditor from './CodeEditor';
 interface EditorPanelProps {
   fileTree: FileNode[];
   projectPath: string;
-  isLoading?: boolean;
   onRefresh?: () => void;
   projectInitialized?: boolean;
 }
@@ -23,7 +22,6 @@ interface EditorPanelProps {
 export default function EditorPanel({ 
   fileTree, 
   projectPath, 
-  isLoading: isLoadingTree, 
   onRefresh,
   projectInitialized = true,
 }: EditorPanelProps) {

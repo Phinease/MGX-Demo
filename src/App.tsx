@@ -65,7 +65,6 @@ const App = () => {
     fileTree, 
     isLoading: isLoadingFileTree,
     error: fileTreeError,
-    isBackendConnected,
     loadFileTree 
   } = useFileTree({
     projectPath,
@@ -75,7 +74,6 @@ const App = () => {
   // Use coding preview hook to manage file previews
   const {
     currentPreview,
-    previewHistory,
     startPreview,
     setContent,
     completePreview,
@@ -293,7 +291,7 @@ const App = () => {
     
     // Update content in conversation state
     if (currentConversationId && currentPreview) {
-      const { data } = await updateCodingState(currentConversationId, currentPreview.filePath, content, true);
+      const { data } = await updateCodingState(currentConversationId, currentPreview.path, content, true);
       if (data) {
         setConversationState(data);
       }
